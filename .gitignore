@@ -21,6 +21,7 @@ var/
 .env
 .venv
 venv/
+tests/
 ENV/
 .idea/
 .vscode/
