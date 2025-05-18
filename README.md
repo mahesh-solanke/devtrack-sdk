@@ -146,11 +146,32 @@ def test_stats_endpoint():
 ---
 
 ## ✅ TODO <a name="todo"></a>
+Here are the upcoming features and improvements planned for DevTrack SDK:
 
 - [x] In-memory logging
 - [x] Full request metadata (duration, headers, etc.)
-- [ ] DB persistence (SQLite/PostgreSQL)
-- [ ] Rich dashboard UI with charts and filters
+- [ ] 🚫 Exclude specific paths from tracking (e.g., `/docs`, `/health`, `/metrics`)
+- [ ] ⏱️ Track latency percentiles (P50, P95, P99) and categorize response time (fast / average / slow)
+- [ ] 🧩 Support a `devtrack.json` config file for path exclusions and other settings
+- [ ] 🔐 Token-based authentication for `/__devtrack__/stats`
+- [ ] 🧪 Add more unit tests (e.g., request size, content-type tracking, failure simulation)
+- [ ] 🧰 CLI support: `devtrack stats`, `devtrack init`
+- [ ] 🎯 `@track()` decorator for selective endpoint tracking
+- [ ] 📈 Rich dashboard UI with charts and filters for visualizing real-time stats
+- [ ] 💾 Optional database support: SQLite and PostgreSQL
+- [ ] 📦 Add plugin system for log exporters (e.g., file, Prometheus, cloud)
+
+---
+## 💡 Suggestions Welcome!
+
+Have an idea to improve DevTrack SDK?  
+We’d love to hear from you — whether it’s a feature request, performance tweak, or integration idea.
+
+👉 [Open an issue](https://github.com/mahesh-solanke/devtrack-sdk/issues/new) to share your thoughts  
+or  
+💬 Join the discussion in [GitHub Discussions](https://github.com/mahesh-solanke/devtrack-sdk/discussions) *(if enabled)*
+
+Together we can make DevTrack even better for the FastAPI ecosystem. 🚀
 
 ---
 
