@@ -1,6 +1,6 @@
 
 <p align="center">
-  <a href="https://github.com/swanadvi/devtrack-sdk" rel="noopener">
+  <a href="https://github.com/mahesh-solanke/devtrack-sdk" rel="noopener">
     <img width="200px" height="200px" src="../static/DevTrack.png" alt="DevTrack Logo">
   </a>
 </p>
@@ -170,7 +170,7 @@ Run `pre-commit run --all-files` before committing 🙏
 
 ## ✍️ Authors <a name="authors"></a>
 
-- [Mahesh Solanke](https://github.com/swanadvi) - Core Dev & Maintainer
+- [Mahesh Solanke](https://github.com/mahesh-solanke) - Core Dev & Maintainer
 
 ---
 
