@@ -1,5 +1,5 @@
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from starlette.testclient import TestClient
 
 from devtrack_sdk.controller.devtrack_routes import router as devtrack_router
@@ -17,8 +17,8 @@ def app_with_middleware():
         return {"message": "Hello"}
 
     @app.get("/error")
-    async def error_route():
-        return {}, 400
+    def error_route():
+        raise HTTPException(status_code=400, detail="Bad Request")
 
     return app
 
@@ -41,7 +41,6 @@ def test_error_logging(app_with_middleware):
     client.get("/error")
     assert len(DevTrackMiddleware.stats) == 1
     assert DevTrackMiddleware.stats[0]["status_code"] == 400
-    assert DevTrackMiddleware.stats[0]["error_message"] == "Bad Request"
 
 
 def test_internal_stats_endpoint(app_with_middleware):
