@@ -1,7 +1,7 @@
 
 <p align="center">
   <a href="https://github.com/mahesh-solanke/devtrack-sdk" rel="noopener">
-    <img width="200px" height="200px" src="static/DevTrack.png" alt="DevTrack Logo">
+    <img width="200px" height="200px" src="./static/DevTrack.png" alt="DevTrack Logo">
   </a>
 </p>
 
@@ -57,9 +57,7 @@ pip install fastapi httpx starlette
 ### 📥 Installation
 
 ```bash
-git clone https://github.com/mahesh-solanke/devtrack-sdk.git
-cd devtrack-sdk
-pip install -e .
+pip install devtrack-sdk
 ```
 
 ### 🧩 Middleware Integration
@@ -67,7 +65,7 @@ pip install -e .
 ```python
 from fastapi import FastAPI
 from devtrack_sdk.middleware import DevTrackMiddleware
-from devtrack_sdk.devtrack_routes import router as devtrack_router
+from devtrack_sdk.controller import router as devtrack_router
 
 app = FastAPI()
 app.include_router(devtrack_router)
@@ -79,7 +77,7 @@ app.add_middleware(DevTrackMiddleware, api_key="dummy-key")
 ## 🚀 Deployment <a name="deployment"></a>
 
 ```bash
-uvicorn examples.fastapi_example:app --reload
+uvicorn main:app --reload
 ```
 
 Then test with:
@@ -117,23 +115,6 @@ Each request is logged with these fields:
 - `response_size`: response size in bytes
 - `user_id`, `role`: if available from headers or token
 - `trace_id`: unique ID for each request
-
----
-
-## 🧪 Testing <a name="tests"></a>
-
-```bash
-pip install -r requirements.txt
-pytest tests
-```
-
-#### ✅ Example test:
-
-```python
-def test_stats_endpoint():
-    response = client.get("/__devtrack__/stats")
-    assert response.status_code == 200
-```
 
 ---
 

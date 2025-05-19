@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 
 setup(
     name="devtrack-sdk",
-    version="0.1.0",
+    version="0.1.1",
     description="Middleware-based API analytics and observability tool for FastAPI",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
