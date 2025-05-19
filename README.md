@@ -197,5 +197,5 @@ Run `pre-commit run --all-files` before committing 🙏
 
 ## 🎉 Acknowledgements <a name="acknowledgement"></a>
 
-- ✨ Inspired by FastAPI's middleware design
+- ✨ Inspired by [Fast API's](https://github.com/fastapi/fastapi) middleware design
 - 💡 Thanks to the open-source community for tooling and inspiration
