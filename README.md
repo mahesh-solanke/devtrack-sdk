@@ -143,7 +143,7 @@ We’d love to hear from you — whether it’s a feature request, performance t
 
 👉 [Open an issue](https://github.com/mahesh-solanke/devtrack-sdk/issues/new) to share your thoughts  
 or  
-💬 Join the discussion in [GitHub Discussions](https://github.com/mahesh-solanke/devtrack-sdk/discussions) *(if enabled)*
+💬 Join the discussion in [GitHub Discussions](https://github.com/mahesh-solanke/devtrack-sdk/discussions) 
 
 Together we can make DevTrack even better for the FastAPI ecosystem. 🚀
 
