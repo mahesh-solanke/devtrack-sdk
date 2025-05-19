@@ -1,10 +1,3 @@
-
-<p align="center">
-  <a href="https://github.com/mahesh-solanke/devtrack-sdk" rel="noopener">
-    <img width="200px" height="200px" src="./static/DevTrack.png" alt="DevTrack Logo">
-  </a>
-</p>
-
 <h1 align="center">🚀 DevTrack SDK</h1>
 
 <p align="center">
