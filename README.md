@@ -20,10 +20,12 @@
 
 - [🧐 About](#about)
 - [🏁 Getting Started](#getting_started)
+- [🔧 Configuration](#configuration)
 - [🚀 Deployment](#deployment)
 - [🎈 Usage](#usage)
 - [📊 Logged Fields](#logged_fields)
-- [🧪 Testing](#tests)
+- [🔐 Security](#security)
+- [🧪 Testing](#testing)
 - [⛏️ Built Using](#built_using)
 - [✅ TODO](#todo)
 - [🤝 Contributing](#contributing)
@@ -34,7 +36,14 @@
 
 ## 🧐 About <a name="about"></a>
 
-**DevTrack SDK** is a powerful and lightweight middleware for FastAPI apps that automatically logs HTTP requests. Track path, method, status, duration, user agent, and more — right from your app with no extra configuration.
+**DevTrack SDK** is a powerful and lightweight middleware for FastAPI apps that automatically logs HTTP requests. Track path, method, status, duration, user agent, and more — right from your app with no extra configuration. Perfect for development, testing, and production environments.
+
+Key Features:
+- ✨ Zero configuration required
+- 🚀 Lightweight and non-blocking
+- 📊 Comprehensive request tracking
+- 🔒 Security-first design
+- 🎯 Easy integration with FastAPI
 
 ---
 
@@ -65,6 +74,43 @@ app.include_router(devtrack_router)
 app.add_middleware(DevTrackMiddleware)
 ```
 
+That's it! Your app is now tracking requests automatically.
+
+---
+
+## 🔧 Configuration <a name="configuration"></a>
+
+### Basic Configuration
+
+The middleware works out of the box with sensible defaults. You can customize it by passing options:
+
+```python
+app.add_middleware(
+    DevTrackMiddleware,
+    skip_paths=["/endpoint1", "/endpoint2"]  # Paths to exclude from tracking
+)
+```
+
+### Environment-based Settings
+
+For different environments, you can configure the middleware accordingly:
+
+```python
+import os
+
+middleware_config = {
+    "development": {
+        "skip_paths": ["/docs", "/redoc", "/health"],
+    },
+    "production": {
+        "skip_paths": ["/health", "/metrics"],
+    }
+}
+
+env = os.getenv("ENV", "development")
+app.add_middleware(DevTrackMiddleware,exclude_path=middleware_config[env]["skip_paths"])
+```
+
 ---
 
 ## 🚀 Deployment <a name="deployment"></a>
@@ -73,7 +119,7 @@ app.add_middleware(DevTrackMiddleware)
 uvicorn main:app --reload
 ```
 
-Then test with:
+Test the tracking endpoint:
 
 ```bash
 curl http://localhost:8000/__devtrack__/stats
@@ -83,12 +129,30 @@ curl http://localhost:8000/__devtrack__/stats
 
 ## 🎈 Usage <a name="usage"></a>
 
+### Accessing Stats
+
 All tracked data is stored in memory and served via:
 
 ```
 GET /__devtrack__/stats
 ```
 
+Response format:
+```json
+{
+    "total": 42,
+    "entries": [
+        {
+            "path": "/api/users",
+            "method": "GET",
+            "status_code": 200,
+            "timestamp": "2024-03-20T10:00:00Z",
+            "duration_ms": 150.5,
+            // ... other fields
+        }
+    ]
+}
+```
 ---
 
 ## 📊 Logged Fields <a name="logged_fields"></a>
@@ -106,40 +170,77 @@ Each request is logged with these fields:
 - `query_params`: any query string data
 - `request_body`: POST/PUT payload (filtered)
 - `response_size`: response size in bytes
-- `user_id`, `role`: if available from headers or token
+- `user_id`, `role`: if available from headers
 - `trace_id`: unique ID for each request
+
+---
+
+## 🔐 Security <a name="security"></a>
+
+DevTrack SDK is designed with security in mind:
+
+- 🔒 No API keys required for basic usage
+- 🛡️ Automatic filtering of sensitive data
+- 🔐 Optional authentication for stats endpoint (coming soon)
+- 🚫 Configurable path exclusions
+- 🔍 Environment-aware configuration
+
+For production deployments, we recommend:
+- Using environment variables for configuration
+- Implementing proper access control for the stats endpoint
+- Excluding sensitive paths from tracking
+- Monitoring the stats endpoint for unusual activity
+
+---
+
+## 🧪 Testing <a name="testing"></a>
+
+Run the test suite:
+
+```bash
+pytest tests/
+```
+
+The SDK includes comprehensive tests for:
+- Middleware functionality
+- Request tracking
+- Path exclusions
+- Error handling
+- Performance impact
 
 ---
 
 ## ⛏️ Built Using <a name="built_using"></a>
 
-- 🔹 [FastAPI](https://fastapi.tiangolo.com/)
-- 🔹 [Starlette](https://www.starlette.io/)
-- 🔹 [httpx](https://www.python-httpx.org/)
+- 🔹 [FastAPI](https://fastapi.tiangolo.com/) - Modern, fast web framework
+- 🔹 [Starlette](https://www.starlette.io/) - ASGI framework/toolkit
+- 🔹 [httpx](https://www.python-httpx.org/) - Modern HTTP client
 
 ---
 
 ## ✅ TODO <a name="todo"></a>
-Here are the upcoming features and improvements planned for DevTrack SDK:
+
+Upcoming features and improvements:
 
 - [x] In-memory logging
-- [x] Full request metadata (duration, headers, etc.)
-- [ ] 🚫 Exclude specific paths from tracking (e.g., `/docs`, `/health`, `/metrics`)
-- [ ] ⏱️ Track latency percentiles (P50, P95, P99) and categorize response time (fast / average / slow)
-- [ ] 🧩 Support a `devtrack.json` config file for path exclusions and other settings
-- [ ] 🔐 Token-based authentication for `/__devtrack__/stats`
-- [ ] 🧪 Add more unit tests (e.g., request size, content-type tracking, failure simulation)
-- [ ] 🧰 CLI support: `devtrack stats`, `devtrack init`
-- [ ] 🎯 `@track()` decorator for selective endpoint tracking
-- [ ] 📈 Rich dashboard UI with charts and filters for visualizing real-time stats
-- [ ] 💾 Optional database support: SQLite and PostgreSQL
-- [ ] 📦 Add plugin system for log exporters (e.g., file, Prometheus, cloud)
+- [x] Full request metadata
+- [x] Simplified configuration
+- [X] 🚫 Path exclusion patterns
+- [ ] ⏱️ Latency percentiles (P50, P95, P99)
+- [ ] 🧩 `devtrack.json` configuration
+- [ ] 🔐 Token-based authentication
+- [ ] 🧰 CLI tool
+- [ ] 🎯 `@track()` decorator
+- [ ] 📈 Dashboard UI
+- [ ] 💾 Database support
+- [ ] 📦 Log exporters
 
 ---
+
 ## 💡 Suggestions Welcome!
 
 Have an idea to improve DevTrack SDK?  
-We’d love to hear from you — whether it’s a feature request, performance tweak, or integration idea.
+We'd love to hear from you — whether it's a feature request, performance tweak, or integration idea.
 
 👉 [Open an issue](https://github.com/mahesh-solanke/devtrack-sdk/issues/new) to share your thoughts  
 or  
@@ -171,5 +272,5 @@ Run `pre-commit run --all-files` before committing 🙏
 
 ## 🎉 Acknowledgements <a name="acknowledgement"></a>
 
-- ✨ Inspired by [Fast API's](https://github.com/fastapi/fastapi) middleware design
+- ✨ Inspired by [FastAPI's](https://github.com/fastapi/fastapi) middleware design
 - 💡 Thanks to the open-source community for tooling and inspiration

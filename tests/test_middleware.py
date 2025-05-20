@@ -34,22 +34,28 @@ def test_root_logging(app_with_middleware):
     response = client.get("/")
     assert response.status_code == 200
     assert len(DevTrackMiddleware.stats) == 1
-    assert DevTrackMiddleware.stats[0]["path"] == "/"
-    assert DevTrackMiddleware.stats[0]["method"] == "GET"
-    assert "duration_ms" in DevTrackMiddleware.stats[0]
-    assert "timestamp" in DevTrackMiddleware.stats[0]
-    assert "client_ip" in DevTrackMiddleware.stats[0]
+    log_entry = DevTrackMiddleware.stats[0]
+    assert log_entry["path"] == "/"
+    assert log_entry["method"] == "GET"
+    assert "duration_ms" in log_entry
+    assert "timestamp" in log_entry
+    assert "client_ip" in log_entry
+    assert log_entry["status_code"] == 200
 
 
 def test_error_logging(app_with_middleware):
     client = TestClient(app_with_middleware)
     DevTrackMiddleware.stats.clear()
 
-    client.get("/error")
+    response = client.get("/error")
+    assert response.status_code == 400
     assert len(DevTrackMiddleware.stats) == 1
-    assert DevTrackMiddleware.stats[0]["status_code"] == 400
-    assert DevTrackMiddleware.stats[0]["path"] == "/error"
-    assert "duration_ms" in DevTrackMiddleware.stats[0]
+    log_entry = DevTrackMiddleware.stats[0]
+    assert log_entry["status_code"] == 400
+    assert log_entry["path"] == "/error"
+    assert "duration_ms" in log_entry
+    assert "timestamp" in log_entry
+    assert "client_ip" in log_entry
 
 
 def test_post_request_logging(app_with_middleware):
@@ -59,8 +65,13 @@ def test_post_request_logging(app_with_middleware):
     response = client.post("/users", json={"name": "Test User"})
     assert response.status_code == 200
     assert len(DevTrackMiddleware.stats) == 1
-    assert DevTrackMiddleware.stats[0]["method"] == "POST"
-    assert DevTrackMiddleware.stats[0]["path"] == "/users"
+    log_entry = DevTrackMiddleware.stats[0]
+    assert log_entry["method"] == "POST"
+    assert log_entry["path"] == "/users"
+    assert "duration_ms" in log_entry
+    assert "timestamp" in log_entry
+    assert "client_ip" in log_entry
+    assert log_entry["status_code"] == 200
 
 
 def test_internal_stats_endpoint(app_with_middleware):
@@ -101,3 +112,8 @@ def test_excluded_paths_not_logged(app_with_middleware):
     client.get("/openapi.json")
 
     assert len(DevTrackMiddleware.stats) == 0
+
+    # Test that a non-excluded path is logged
+    client.get("/")
+    assert len(DevTrackMiddleware.stats) == 1
+    assert DevTrackMiddleware.stats[0]["path"] == "/"

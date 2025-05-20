@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI
 
 from devtrack_sdk.controller.devtrack_routes import router as devtrack_router
@@ -6,7 +8,18 @@ from devtrack_sdk.middleware.base import DevTrackMiddleware
 app = FastAPI()
 
 app.include_router(devtrack_router)
-app.add_middleware(DevTrackMiddleware)
+middleware_config = {
+    "development": {
+        "skip_paths": ["/get_token", "/user/password", "/admin"],
+    },
+    "production": {
+        "skip_paths": ["/admin", "/user/password"],
+    },
+}
+env = os.getenv("ENV", "development")
+app.add_middleware(
+    DevTrackMiddleware, exclude_path=middleware_config[env]["skip_paths"]
+)
 
 
 @app.get("/")

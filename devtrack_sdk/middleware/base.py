@@ -12,11 +12,9 @@ class DevTrackMiddleware(BaseHTTPMiddleware):
     def __init__(
         self,
         app,
-        backend_url: str = "/__devtrack__/track",
         exclude_path: list[str] = [],
     ):
         self.skip_paths = [
-            backend_url,
             "/__devtrack__/stats",
             "/docs",
             "/redoc",
@@ -33,7 +31,6 @@ class DevTrackMiddleware(BaseHTTPMiddleware):
             print(f"[DevTrackMiddleware] Error in exclude_path: {e}")
             raise e
 
-        self.backend_url = backend_url
         super().__init__(app)
 
     async def dispatch(self, request: Request, call_next):
