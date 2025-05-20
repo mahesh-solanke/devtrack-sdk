@@ -62,7 +62,7 @@ from devtrack_sdk.controller import router as devtrack_router
 
 app = FastAPI()
 app.include_router(devtrack_router)
-app.add_middleware(DevTrackMiddleware, api_key="dummy-key")
+app.add_middleware(DevTrackMiddleware)
 ```
 
 ---
