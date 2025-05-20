@@ -9,9 +9,8 @@ from devtrack_sdk.middleware.extractor import extract_devtrack_log_data
 class DevTrackMiddleware(BaseHTTPMiddleware):
     stats = []
 
-    def __init__(self, app, api_key: str, backend_url: str = "/__devtrack__/track"):
+    def __init__(self, app, backend_url: str = "/__devtrack__/track"):
         self.skip_paths = [backend_url, "/__devtrack__/stats"]
-        self.api_key = api_key
         self.backend_url = backend_url
         super().__init__(app)
 

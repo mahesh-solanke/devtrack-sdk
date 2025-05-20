@@ -10,7 +10,7 @@ from devtrack_sdk.middleware.base import DevTrackMiddleware
 def app_with_middleware():
     app = FastAPI()
     app.include_router(devtrack_router)
-    app.add_middleware(DevTrackMiddleware, api_key="test-key")
+    app.add_middleware(DevTrackMiddleware)
 
     @app.get("/")
     async def root():

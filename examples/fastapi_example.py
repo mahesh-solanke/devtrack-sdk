@@ -6,7 +6,7 @@ from devtrack_sdk.middleware.base import DevTrackMiddleware
 app = FastAPI()
 
 app.include_router(devtrack_router)
-app.add_middleware(DevTrackMiddleware, api_key="dummy")
+app.add_middleware(DevTrackMiddleware)
 
 
 @app.get("/")
