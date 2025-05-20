@@ -9,8 +9,30 @@ from devtrack_sdk.middleware.extractor import extract_devtrack_log_data
 class DevTrackMiddleware(BaseHTTPMiddleware):
     stats = []
 
-    def __init__(self, app, backend_url: str = "/__devtrack__/track"):
-        self.skip_paths = [backend_url, "/__devtrack__/stats"]
+    def __init__(
+        self,
+        app,
+        backend_url: str = "/__devtrack__/track",
+        exclude_path: list[str] = [],
+    ):
+        self.skip_paths = [
+            backend_url,
+            "/__devtrack__/stats",
+            "/docs",
+            "/redoc",
+            "/openapi.json",
+            "/favicon.ico",
+            "/health",
+            "/metrics",
+        ]
+        try:
+            if not isinstance(exclude_path, list):
+                raise TypeError("exclude_path must be a list")
+            self.skip_paths += exclude_path
+        except TypeError as e:
+            print(f"[DevTrackMiddleware] Error in exclude_path: {e}")
+            raise e
+
         self.backend_url = backend_url
         super().__init__(app)
 

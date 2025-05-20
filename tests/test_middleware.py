@@ -20,6 +20,10 @@ def app_with_middleware():
     def error_route():
         raise HTTPException(status_code=400, detail="Bad Request")
 
+    @app.post("/users")
+    async def create_user():
+        return {"id": 1, "name": "Test User"}
+
     return app
 
 
@@ -32,6 +36,9 @@ def test_root_logging(app_with_middleware):
     assert len(DevTrackMiddleware.stats) == 1
     assert DevTrackMiddleware.stats[0]["path"] == "/"
     assert DevTrackMiddleware.stats[0]["method"] == "GET"
+    assert "duration_ms" in DevTrackMiddleware.stats[0]
+    assert "timestamp" in DevTrackMiddleware.stats[0]
+    assert "client_ip" in DevTrackMiddleware.stats[0]
 
 
 def test_error_logging(app_with_middleware):
@@ -41,16 +48,56 @@ def test_error_logging(app_with_middleware):
     client.get("/error")
     assert len(DevTrackMiddleware.stats) == 1
     assert DevTrackMiddleware.stats[0]["status_code"] == 400
+    assert DevTrackMiddleware.stats[0]["path"] == "/error"
+    assert "duration_ms" in DevTrackMiddleware.stats[0]
+
+
+def test_post_request_logging(app_with_middleware):
+    client = TestClient(app_with_middleware)
+    DevTrackMiddleware.stats.clear()
+
+    response = client.post("/users", json={"name": "Test User"})
+    assert response.status_code == 200
+    assert len(DevTrackMiddleware.stats) == 1
+    assert DevTrackMiddleware.stats[0]["method"] == "POST"
+    assert DevTrackMiddleware.stats[0]["path"] == "/users"
 
 
 def test_internal_stats_endpoint(app_with_middleware):
     client = TestClient(app_with_middleware)
     DevTrackMiddleware.stats.clear()
 
+    # Make multiple requests
     client.get("/")
+    client.post("/users", json={"name": "Test User"})
+    client.get("/error")
+
     response = client.get("/__devtrack__/stats")
     assert response.status_code == 200
     body = response.json()
     assert "total" in body
+    assert body["total"] == 3
     assert "entries" in body
     assert isinstance(body["entries"], list)
+    assert len(body["entries"]) == 3
+
+    # Verify entries contain all required fields
+    for entry in body["entries"]:
+        assert "path" in entry
+        assert "method" in entry
+        assert "status_code" in entry
+        assert "timestamp" in entry
+        assert "duration_ms" in entry
+        assert "client_ip" in entry
+
+
+def test_excluded_paths_not_logged(app_with_middleware):
+    client = TestClient(app_with_middleware)
+    DevTrackMiddleware.stats.clear()
+
+    # These paths should be excluded from logging
+    client.get("/docs")
+    client.get("/redoc")
+    client.get("/openapi.json")
+
+    assert len(DevTrackMiddleware.stats) == 0
