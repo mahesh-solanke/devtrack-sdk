@@ -87,7 +87,7 @@ The middleware works out of the box with sensible defaults. You can customize it
 ```python
 app.add_middleware(
     DevTrackMiddleware,
-    skip_paths=["/endpoint1", "/endpoint2"]  # Paths to exclude from tracking
+    exclude_path=["/endpoint1", "/endpoint2"]  # Paths to exclude from tracking
 )
 ```
 
