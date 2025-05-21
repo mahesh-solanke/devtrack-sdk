@@ -225,7 +225,7 @@ Upcoming features and improvements:
 - [x] In-memory logging
 - [x] Full request metadata
 - [x] Simplified configuration
-- [X] 🚫 Path exclusion patterns
+- [x] 🚫 Path exclusion patterns
 - [ ] ⏱️ Latency percentiles (P50, P95, P99)
 - [ ] 🧩 `devtrack.json` configuration
 - [ ] 🔐 Token-based authentication
@@ -234,6 +234,8 @@ Upcoming features and improvements:
 - [ ] 📈 Dashboard UI
 - [ ] 💾 Database support
 - [ ] 📦 Log exporters
+
+For more detailed plans and tasks, please refer to the [TODO](./TODO) in the project repository.
 
 ---
 
