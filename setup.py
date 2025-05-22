@@ -1,8 +1,10 @@
 from setuptools import find_packages, setup
 
+from devtrack_sdk import __version__
+
 setup(
     name="devtrack-sdk",
-    version="0.2.2",
+    version=__version__.__version__,
     description="Middleware-based API analytics and observability tool for FastAPI",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
@@ -18,4 +20,9 @@ setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
+    entry_points={
+        "console_scripts": [
+            "devtrack = devtrack_sdk.cli:app",
+        ],
+    },
 )

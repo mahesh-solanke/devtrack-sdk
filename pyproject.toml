@@ -1,3 +1,31 @@
 [build-system]
 requires = ["setuptools>=42", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "devtrack_sdk"
+version = "0.2.3"
+description = "Middleware-based API analytics and observability tool for FastAPI"
+readme = {file = "README.md", content-type = "text/markdown"}
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Mahesh Solanke", email = "maheshsolanke69@gmail.com"}
+]
+urls = {Homepage = "https://github.com/mahesh-solanke/devtrack-sdk"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent"
+]
+dependencies = [
+    "fastapi",
+    "httpx",
+    "starlette"
+]
+
+[tool.setuptools]
+packages = ["devtrack_sdk"]
+
+[project.scripts]
+devtrack = "devtrack_sdk.cli:app"
