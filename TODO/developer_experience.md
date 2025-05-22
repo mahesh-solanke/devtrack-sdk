@@ -3,7 +3,11 @@
 Tasks to make DevTrack easier and more enjoyable for developers to use and contribute to.
 
 ## SDK Features
-- [ ] Add CLI tool (`init`, `stats`)
+- [-] Add CLI tool
+    - [ x ]`init`
+    - [   ] `stat`
+    - [ x ]`generate-config`
+    - [ x ]`version`
 - [ ] Support config hot-reload
 - [ ] Add Starlette/Django support
 - [ ] Auto-detect and configure middleware
