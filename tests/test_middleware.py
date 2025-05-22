@@ -41,6 +41,9 @@ def test_root_logging(app_with_middleware):
     assert "timestamp" in log_entry
     assert "client_ip" in log_entry
     assert log_entry["status_code"] == 200
+    assert isinstance(log_entry["duration_ms"], int | float)
+    assert isinstance(log_entry["timestamp"], str)
+    assert isinstance(log_entry["client_ip"], str)
 
 
 def test_error_logging(app_with_middleware):
@@ -56,6 +59,9 @@ def test_error_logging(app_with_middleware):
     assert "duration_ms" in log_entry
     assert "timestamp" in log_entry
     assert "client_ip" in log_entry
+    assert isinstance(log_entry["duration_ms"], int | float)
+    assert isinstance(log_entry["timestamp"], str)
+    assert isinstance(log_entry["client_ip"], str)
 
 
 def test_post_request_logging(app_with_middleware):
@@ -72,6 +78,9 @@ def test_post_request_logging(app_with_middleware):
     assert "timestamp" in log_entry
     assert "client_ip" in log_entry
     assert log_entry["status_code"] == 200
+    assert isinstance(log_entry["duration_ms"], int | float)
+    assert isinstance(log_entry["timestamp"], str)
+    assert isinstance(log_entry["client_ip"], str)
 
 
 def test_internal_stats_endpoint(app_with_middleware):
@@ -100,6 +109,9 @@ def test_internal_stats_endpoint(app_with_middleware):
         assert "timestamp" in entry
         assert "duration_ms" in entry
         assert "client_ip" in entry
+        assert isinstance(entry["duration_ms"], int | float)
+        assert isinstance(entry["timestamp"], str)
+        assert isinstance(entry["client_ip"], str)
 
 
 def test_excluded_paths_not_logged(app_with_middleware):
@@ -117,3 +129,6 @@ def test_excluded_paths_not_logged(app_with_middleware):
     client.get("/")
     assert len(DevTrackMiddleware.stats) == 1
     assert DevTrackMiddleware.stats[0]["path"] == "/"
+    assert isinstance(DevTrackMiddleware.stats[0]["duration_ms"], int | float)
+    assert isinstance(DevTrackMiddleware.stats[0]["timestamp"], str)
+    assert isinstance(DevTrackMiddleware.stats[0]["client_ip"], str)
