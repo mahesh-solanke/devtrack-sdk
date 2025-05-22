@@ -1,6 +1,7 @@
 import os
 
 from fastapi import FastAPI
+from pydantic import BaseModel
 
 from devtrack_sdk.controller.devtrack_routes import router as devtrack_router
 from devtrack_sdk.middleware.base import DevTrackMiddleware
@@ -22,14 +23,19 @@ app.add_middleware(
 )
 
 
+class Data(BaseModel):
+    username: str
+    password: str
+
+
 @app.get("/")
 async def root():
     return {"message": "Hello from DevTrack!"}
 
 
-@app.get("/slow")
-async def slow():
+@app.post("/slow/{seconds}")
+async def slow(seconds: int | float, value: str, data: Data):
     import time
 
-    time.sleep(1)
+    time.sleep(seconds)
     return {"message": "This was a slow request!"}
