@@ -3,7 +3,7 @@ requires = ["setuptools>=42", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "devtrack_sdk"
+name = "devtrack-sdk"  # ✅ Hyphenated name for PyPI friendliness
 version = "0.2.3"
 description = "Middleware-based API analytics and observability tool for FastAPI"
 readme = {file = "README.md", content-type = "text/markdown"}
@@ -14,14 +14,18 @@ authors = [
 ]
 urls = {Homepage = "https://github.com/mahesh-solanke/devtrack-sdk"}
 classifiers = [
+    "Development Status :: 4 - Beta",
     "Programming Language :: Python :: 3",
+    "Framework :: FastAPI",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent"
 ]
 dependencies = [
-    "fastapi",
-    "httpx",
-    "starlette"
+    "fastapi>=0.90",
+    "httpx>=0.24",
+    "starlette>=0.22",
+    "rich>=13.3",
+    "typer[all]>=0.9"
 ]
 
 [tool.setuptools]
