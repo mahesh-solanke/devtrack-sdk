@@ -1,10 +1,11 @@
 # devtrack_sdk/cli.py
 import sys
-from importlib.metadata import version as get_version
 
 import requests
 import typer
 from rich.console import Console
+
+from devtrack_sdk.__version__ import __version__
 
 app = typer.Typer(help="DevTrack CLI toolkit", add_completion=False)
 
@@ -43,7 +44,7 @@ def detect_devtrack_endpoint(timeout=0.5) -> str:
 @app.command()
 def version():
     """Show the installed DevTrack SDK version."""
-    typer.echo(f"DevTrack SDK v{get_version('devtrack-sdk')}")
+    typer.echo(f"DevTrack SDK v{__version__}")
 
 
 # TODO: Add a command to generate a default devtrack config file
