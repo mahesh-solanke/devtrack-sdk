@@ -25,11 +25,12 @@ dependencies = [
     "httpx>=0.24",
     "starlette>=0.22",
     "rich>=13.3",
-    "typer[all]>=0.9"
+    "typer>=0.9"
 ]
 
-[tool.setuptools]
-packages = ["devtrack_sdk"]
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["devtrack_sdk*"]
 
 [project.scripts]
 devtrack = "devtrack_sdk.cli:app"

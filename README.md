@@ -22,7 +22,7 @@
 - [🏁 Getting Started](#getting_started)
 - [🔧 Configuration](#configuration)
 - [🚀 Deployment](#deployment)
-- [🎈 Usage](#usage)
+- [🎈 Usage & CLI Tool](#usage)
 - [📊 Logged Fields](#logged_fields)
 - [🔐 Security](#security)
 - [🧪 Testing](#testing)
@@ -108,7 +108,7 @@ middleware_config = {
 }
 
 env = os.getenv("ENV", "development")
-app.add_middleware(DevTrackMiddleware,exclude_path=middleware_config[env]["skip_paths"])
+app.add_middleware(DevTrackMiddleware, exclude_path=middleware_config[env]["skip_paths"])
 ```
 
 ---
@@ -127,7 +127,27 @@ curl http://localhost:8000/__devtrack__/stats
 
 ---
 
-## 🎈 Usage <a name="usage"></a>
+## 🎈 Usage & CLI Tool <a name="usage"></a>
+
+### CLI Tool
+
+DevTrack SDK now comes with a CLI tool (available as the "devtrack" command) to help you manage your project. For example, you can run:
+
+```bash
+devtrack -- version
+```
+
+to display the current SDK version, or
+
+```bash
+devtrack stat
+```
+
+to detect and display stats (for example, from your local endpoint).
+
+Below is a demo screenshot of the CLI tool in action:
+
+![CLI Demo](static/CLIDemo.png)
 
 ### Accessing Stats
 
@@ -153,6 +173,7 @@ Response format:
     ]
 }
 ```
+
 ---
 
 ## 📊 Logged Fields <a name="logged_fields"></a>
@@ -212,9 +233,9 @@ The SDK includes comprehensive tests for:
 
 ## ⛏️ Built Using <a name="built_using"></a>
 
-- 🔹 [FastAPI](https://fastapi.tiangolo.com/) - Modern, fast web framework
-- 🔹 [Starlette](https://www.starlette.io/) - ASGI framework/toolkit
-- 🔹 [httpx](https://www.python-httpx.org/) - Modern HTTP client
+- 🔹 [FastAPI](https://fastapi.tiangolo.com/) – Modern, fast web framework
+- 🔹 [Starlette](https://www.starlette.io/) – ASGI framework/toolkit
+- 🔹 [httpx](https://www.python-httpx.org/) – Modern HTTP client
 
 ---
 
@@ -226,10 +247,10 @@ Upcoming features and improvements:
 - [x] Full request metadata
 - [x] Simplified configuration
 - [x] 🚫 Path exclusion patterns
+- [x] 🧰 CLI tool (with "version" and "stat" commands)
 - [ ] ⏱️ Latency percentiles (P50, P95, P99)
 - [ ] 🧩 `devtrack.json` configuration
 - [ ] 🔐 Token-based authentication
-- [ ] 🧰 CLI tool
 - [ ] 🎯 `@track()` decorator
 - [ ] 📈 Dashboard UI
 - [ ] 💾 Database support
@@ -268,7 +289,7 @@ Run `pre-commit run --all-files` before committing 🙏
 
 ## ✍️ Authors <a name="authors"></a>
 
-- [Mahesh Solanke](https://github.com/mahesh-solanke) - Core Dev & Maintainer
+- [Mahesh Solanke](https://github.com/mahesh-solanke) – Core Dev & Maintainer
 
 ---
 
