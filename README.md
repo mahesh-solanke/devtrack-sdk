@@ -147,12 +147,11 @@ to detect and display stats (for example, from your local endpoint).
 
 Below is a demo screenshot of the CLI tool in action:
 
-![CLI Demo](static/CLIDemo.png)
+![CLI Demo](https://raw.githubusercontent.com/mahesh-solanke/devtrack-sdk/main/static/CLIDemo.png)
 
 ### Accessing Stats
 
 All tracked data is stored in memory and served via:
-
 ```
 GET /__devtrack__/stats
 ```
