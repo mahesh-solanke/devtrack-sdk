@@ -27,18 +27,43 @@ def detect_devtrack_endpoint(timeout=0.5) -> str:
 
     typer.echo("⚠️  DevTrack stats endpoint not reachable on common ports.")
     host = typer.prompt(
-        f"Please enter the host for your DevTrack stats endpoint\n\
-        (e.g., {', '.join(possible_hosts)}) "
+        f"Enter the host for your DevTrack stats endpoint\n\
+        (e.g., {', '.join(possible_hosts)} or your domain like api.example.com) "
     ).strip()
-    port = typer.prompt(
-        f"Please enter the port for your DevTrack stats endpoint \n\
-        (e.g., {', '.join(map(str, possible_ports))}) "
-    ).strip()
-    protocol = typer.prompt(
-        "Please enter the protocol for your DevTrack stats endpoint \n\
-        (http or https) "
-    )
-    return f"{protocol}://{host}:{port}{devtrack_path}"
+
+    # Clean up host input - remove protocol and trailing slashes if present
+    if "://" in host:
+        protocol, host = host.split("://", 1)
+    else:
+        protocol = None
+    host = host.rstrip("/")
+
+    # Ask if the user wants to enter a port
+    enter_port = typer.confirm("Do you want to enter a port number?", default=True)
+    if enter_port:
+        port = (
+            typer.prompt(
+                f"Enter the port number (press Enter to skip if using default port)\n\
+            (Common ports: {', '.join(map(str, possible_ports))})",
+                default="",
+            ).strip()
+            or None
+        )
+    else:
+        port = None
+
+    # Only ask for protocol if it wasn't in the host input
+    if protocol is None:
+        protocol = typer.prompt(
+            "Please enter the protocol for your DevTrack stats endpoint \n\
+            (http or https) "
+        )
+
+    # Construct URL
+    url = f"{protocol}://{host}"
+    if port:
+        url = f"{url}:{port}"
+    return f"{url}{devtrack_path}"
 
 
 @app.command()
