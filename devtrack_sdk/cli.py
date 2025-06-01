@@ -131,7 +131,7 @@ def stat(
     average_stats = defaultdict(lambda: {"hits": 0, "total_latency": 0.0})
 
     for entry in entries:
-        path = entry["path"]
+        path = entry["path_pattern"]
         method = entry["method"]
         key = (path, method)
         average_stats[key]["hits"] += 1

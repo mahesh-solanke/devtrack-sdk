@@ -11,6 +11,10 @@ async def extract_devtrack_log_data(
     duration = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000  # in ms
     headers = request.headers
 
+    # Get the route object and path pattern
+    route = request.scope.get("route")
+    path_pattern = route.path_format if route else request.url.path
+
     # Capture query params and request body (optional: filter sensitive keys)
     path_params = dict(request.path_params)
     query_params = dict(request.query_params)
@@ -36,7 +40,8 @@ async def extract_devtrack_log_data(
     role = headers.get("x-user-role")
 
     return {
-        "path": request.url.path,
+        "path": request.url.path,  # Original path with actual values
+        "path_pattern": path_pattern,  # Normalized path with parameter names
         "method": request.method,
         "status_code": response.status_code,
         "timestamp": start_time.isoformat(),
