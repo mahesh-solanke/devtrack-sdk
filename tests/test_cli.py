@@ -102,8 +102,18 @@ def test_detect_devtrack_endpoint_with_cleanup():
 def test_stat_command_success():
     mock_stats = {
         "entries": [
-            {"path": "/api/test", "method": "GET", "duration_ms": 100},
-            {"path": "/api/test", "method": "GET", "duration_ms": 200},
+            {
+                "path": "/api/test",
+                "path_pattern": "/api/test",
+                "method": "GET",
+                "duration_ms": 100,
+            },
+            {
+                "path": "/api/test",
+                "path_pattern": "/api/test",
+                "method": "GET",
+                "duration_ms": 200,
+            },
         ]
     }
 
@@ -123,9 +133,24 @@ def test_stat_command_success():
 def test_stat_command_with_top_option():
     mock_stats = {
         "entries": [
-            {"path": "/api/test1", "method": "GET", "duration_ms": 100},
-            {"path": "/api/test2", "method": "POST", "duration_ms": 200},
-            {"path": "/api/test3", "method": "PUT", "duration_ms": 300},
+            {
+                "path": "/api/test1",
+                "path_pattern": "/api/test1",
+                "method": "GET",
+                "duration_ms": 100,
+            },
+            {
+                "path": "/api/test2",
+                "path_pattern": "/api/test2",
+                "method": "POST",
+                "duration_ms": 200,
+            },
+            {
+                "path": "/api/test3",
+                "path_pattern": "/api/test3",
+                "method": "PUT",
+                "duration_ms": 300,
+            },
         ]
     }
 
@@ -146,8 +171,18 @@ def test_stat_command_with_top_option():
 def test_stat_command_with_sort_by_latency():
     mock_stats = {
         "entries": [
-            {"path": "/api/fast", "method": "GET", "duration_ms": 100},
-            {"path": "/api/slow", "method": "GET", "duration_ms": 500},
+            {
+                "path": "/api/fast",
+                "path_pattern": "/api/fast",
+                "method": "GET",
+                "duration_ms": 100,
+            },
+            {
+                "path": "/api/slow",
+                "path_pattern": "/api/slow",
+                "method": "GET",
+                "duration_ms": 500,
+            },
         ]
     }
 
