@@ -53,7 +53,7 @@ Key Features:
 
 ```bash
 python >= 3.8
-pip install fastapi httpx starlette
+pip install fastapi httpx starlette django
 ```
 
 ### 📥 Installation
@@ -62,7 +62,7 @@ pip install fastapi httpx starlette
 pip install devtrack-sdk
 ```
 
-### 🧩 Middleware Integration
+### 🧩 FastAPI Middleware Integration
 
 ```python
 from fastapi import FastAPI
@@ -72,6 +72,35 @@ from devtrack_sdk.controller import router as devtrack_router
 app = FastAPI()
 app.include_router(devtrack_router)
 app.add_middleware(DevTrackMiddleware)
+```
+
+### 🧩 Django Middleware Integration
+
+```python
+# settings.py
+MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # Add DevTrack middleware
+    'devtrack_sdk.django_middleware.DevTrackDjangoMiddleware',
+]
+
+# urls.py
+from django.urls import path, include
+from devtrack_sdk.django_urls import devtrack_urlpatterns
+
+urlpatterns = [
+    # Your other URL patterns
+    path('api/', include('your_app.urls')),
+    
+    # Include DevTrack URLs
+    *devtrack_urlpatterns,
+]
 ```
 
 That's it! Your app is now tracking requests automatically.
@@ -109,6 +138,33 @@ middleware_config = {
 
 env = os.getenv("ENV", "development")
 app.add_middleware(DevTrackMiddleware, exclude_path=middleware_config[env]["skip_paths"])
+```
+
+### Django Configuration
+
+For Django applications, you can customize the middleware behavior:
+
+```python
+# settings.py
+from devtrack_sdk.django_middleware import DevTrackDjangoMiddleware
+
+# Custom middleware with exclude paths
+class CustomDevTrackMiddleware(DevTrackDjangoMiddleware):
+    def __init__(self, get_response=None):
+        exclude_paths = [
+            "/api/health/",
+            "/api/metrics/",
+            "/admin/",
+            "/static/",
+            "/media/",
+        ]
+        super().__init__(get_response, exclude_path=exclude_paths)
+
+# Use custom middleware in MIDDLEWARE setting
+MIDDLEWARE = [
+    # ... other middleware
+    'your_app.middleware.CustomDevTrackMiddleware',
+]
 ```
 
 ---
@@ -233,6 +289,7 @@ The SDK includes comprehensive tests for:
 ## ⛏️ Built Using <a name="built_using"></a>
 
 - 🔹 [FastAPI](https://fastapi.tiangolo.com/) – Modern, fast web framework
+- 🔹 [Django](https://www.djangoproject.com/) – High-level Python web framework
 - 🔹 [Starlette](https://www.starlette.io/) – ASGI framework/toolkit
 - 🔹 [httpx](https://www.python-httpx.org/) – Modern HTTP client
 
