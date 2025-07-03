@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "devtrack-sdk"  # ✅ Hyphenated name for PyPI friendliness
 version = "0.2.5"
-description = "Middleware-based API analytics and observability tool for FastAPI"
+description = "Middleware-based API analytics and observability tool for FastAPI and Django"
 readme = {file = "README.md", content-type = "text/markdown"}
 requires-python = ">=3.10"
 license = {text = "MIT"}
@@ -17,11 +17,13 @@ classifiers = [
     "Development Status :: 4 - Beta",
     "Programming Language :: Python :: 3",
     "Framework :: FastAPI",
+    "Framework :: Django",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent"
 ]
 dependencies = [
     "fastapi>=0.90",
+    "django>=4.0.0",
     "httpx>=0.24",
     "starlette>=0.22",
     "rich>=13.3",
@@ -34,3 +36,6 @@ include = ["devtrack_sdk*"]
 
 [project.scripts]
 devtrack = "devtrack_sdk.cli:app"
+
+[tool.isort]
+profile = "black"
