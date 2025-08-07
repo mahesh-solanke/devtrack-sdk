@@ -289,7 +289,7 @@ Run `pre-commit run --all-files` before committing 🙏
 ## ✍️ Authors <a name="authors"></a>
 
 - [Mahesh Solanke](https://github.com/mahesh-solanke) – Core Dev & Maintainer
-
+- [Pratik Karanje](https://github.com/lfpratik) - Co-Maintainer
 ---
 
 ## 🎉 Acknowledgements <a name="acknowledgement"></a>
