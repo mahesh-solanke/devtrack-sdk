@@ -9,7 +9,7 @@ Extend DevTrack’s core with handy tools and better framework support.
 
 ## Frameworks
 - [ ] Add support for Starlette
-- [ ] Add support for Django
+- [x] Add support for Django
 
 ## Middleware
 - [ ] Auto-detect supported frameworks
