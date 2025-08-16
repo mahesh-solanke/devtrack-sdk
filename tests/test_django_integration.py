@@ -7,7 +7,7 @@ import os
 from datetime import datetime, timezone
 from unittest.mock import Mock, patch
 
-from django.test import RequestFactory, TestCase, override_settings
+from django.test import RequestFactory, TestCase
 
 # Import Django components
 from devtrack_sdk.django_middleware import DevTrackDjangoMiddleware
@@ -18,18 +18,6 @@ from devtrack_sdk.django_views import stats_view, track_view
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "tests.test_settings")
 
 
-@override_settings(
-    MIDDLEWARE=[
-        "django.middleware.security.SecurityMiddleware",
-        "django.contrib.sessions.middleware.SessionMiddleware",
-        "django.middleware.common.CommonMiddleware",
-        "django.middleware.csrf.CsrfViewMiddleware",
-        "django.contrib.auth.middleware.AuthenticationMiddleware",
-        "django.contrib.messages.middleware.MessageMiddleware",
-        "django.middleware.clickjacking.XFrameOptionsMiddleware",
-        "devtrack_sdk.django_middleware.DevTrackDjangoMiddleware",
-    ]
-)
 class DevTrackDjangoMiddlewareTest(TestCase):
     """Test Django middleware functionality"""
 
@@ -110,18 +98,6 @@ class DevTrackDjangoMiddlewareTest(TestCase):
         self.assertIn("/custom/path/", custom_middleware.skip_paths)
 
 
-@override_settings(
-    MIDDLEWARE=[
-        "django.middleware.security.SecurityMiddleware",
-        "django.contrib.sessions.middleware.SessionMiddleware",
-        "django.middleware.common.CommonMiddleware",
-        "django.middleware.csrf.CsrfViewMiddleware",
-        "django.contrib.auth.middleware.AuthenticationMiddleware",
-        "django.contrib.messages.middleware.MessageMiddleware",
-        "django.middleware.clickjacking.XFrameOptionsMiddleware",
-        "devtrack_sdk.django_middleware.DevTrackDjangoMiddleware",
-    ]
-)
 class DevTrackDjangoViewsTest(TestCase):
     """Test Django views functionality"""
 
