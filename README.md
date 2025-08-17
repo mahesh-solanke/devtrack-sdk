@@ -11,7 +11,7 @@
 [![GitHub Issues](https://img.shields.io/github/issues/mahesh-solanke/devtrack-sdk.svg)](https://github.com/mahesh-solanke/devtrack-sdk/issues)
 [![GitHub Pull Requests](https://img.shields.io/github/issues-pr/mahesh-solanke/devtrack-sdk.svg)](https://github.com/mahesh-solanke/devtrack-sdk/pulls)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](/LICENSE)
-![PyPI - Downloads](https://img.shields.io/pypi/dd/devtrack-sdk)
+[![PyPI Downloads](https://static.pepy.tech/badge/devtrack-sdk)](https://pepy.tech/projects/devtrack-sdk)
 </div>
 
 ---
