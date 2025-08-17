@@ -172,7 +172,11 @@ MIDDLEWARE = [
 ## 🚀 Deployment <a name="deployment"></a>
 
 ```bash
-uvicorn main:app --reload
+# Start your FastAPI app with auto-reload
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+
+# Or for Django
+python manage.py runserver 0.0.0.0:8000
 ```
 
 Test the tracking endpoint:
