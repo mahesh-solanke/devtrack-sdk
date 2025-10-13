@@ -1,6 +1,6 @@
 # Django Integration Guide
 
-This guide shows you how to integrate DevTrack SDK with your Django application for comprehensive request tracking and analytics.
+This guide shows you how to integrate DevTrack SDK with your Django application for comprehensive request tracking and analytics using DuckDB for persistent storage.
 
 ## Quick Start
 
@@ -10,7 +10,19 @@ This guide shows you how to integrate DevTrack SDK with your Django application 
 pip install devtrack-sdk
 ```
 
-### 2. Add Middleware to Settings
+### 2. Initialize Database
+
+Initialize the DuckDB database for persistent log storage:
+
+```bash
+# Using CLI
+devtrack init --force
+
+# Or using Django management command
+python manage.py devtrack_init --force
+```
+
+### 3. Add Middleware to Settings
 
 Add the DevTrack middleware to your Django settings:
 
@@ -28,9 +40,12 @@ MIDDLEWARE = [
     # Add DevTrack middleware
     'devtrack_sdk.django_middleware.DevTrackDjangoMiddleware',
 ]
+
+# DevTrack configuration
+DEVTRACK_DB_PATH = 'devtrack_logs.db'  # Path to DuckDB file
 ```
 
-### 3. Add URL Patterns
+### 4. Add URL Patterns
 
 Include DevTrack URL patterns in your main URLs configuration:
 
@@ -51,7 +66,22 @@ urlpatterns = [
 ]
 ```
 
-### 4. Test the Integration
+### 5. Django Management Commands
+
+DevTrack SDK provides Django management commands for database operations:
+
+```bash
+# Initialize database
+python manage.py devtrack_init --force
+
+# Show statistics
+python manage.py devtrack_stats --limit 20
+
+# Reset database (delete all logs)
+python manage.py devtrack_reset --yes
+```
+
+### 6. Test the Integration
 
 Start your Django development server:
 
