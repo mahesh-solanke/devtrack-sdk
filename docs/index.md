@@ -69,8 +69,13 @@ The DevTrack CLI provides 8 powerful commands:
 
 ## Documentation Sections
 
-- [FastAPI Integration](fastapi_integration.md) - Complete FastAPI setup guide
-- [Django Integration](django_integration.md) - Complete Django setup guide
+```{toctree}
+:maxdepth: 2
+:caption: Integration Guides
+
+fastapi_integration
+django_integration
+```
 
 ## Getting Help
 
