@@ -1,13 +1,26 @@
 # devtrack_sdk/cli.py
-import sys
+import json
+import os
+from datetime import datetime, timedelta
+from typing import Optional
 
 import requests
 import typer
 from rich.console import Console
+from rich.panel import Panel
+from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.prompt import Confirm, Prompt
+from rich.table import Table
 
 from devtrack_sdk.__version__ import __version__
+from devtrack_sdk.database import DevTrackDB, init_db
 
-app = typer.Typer(help="DevTrack CLI toolkit", add_completion=False)
+app = typer.Typer(
+    name="devtrack",
+    help="🚀 DevTrack CLI - Comprehensive request tracking and analytics toolkit",
+    add_completion=False,
+    rich_markup_mode="rich",
+)
 
 
 def detect_devtrack_endpoint(timeout=0.5) -> str:
@@ -68,53 +81,431 @@ def detect_devtrack_endpoint(timeout=0.5) -> str:
 
 @app.command()
 def version():
-    """Show the installed DevTrack SDK version."""
-    typer.echo(f"DevTrack SDK v{__version__}")
+    """📦 Show the installed DevTrack SDK version and build information."""
+    console = Console()
+    console.print(f"[bold blue]DevTrack SDK[/] v[green]{__version__}[/]")
+
+    # Show additional info
+    info_table = Table(title="DevTrack Information", border_style="blue")
+    info_table.add_column("Property", style="cyan")
+    info_table.add_column("Value", style="green")
+
+    info_table.add_row("Version", __version__)
+    info_table.add_row("Framework Support", "FastAPI, Django")
+    info_table.add_row("Database", "DuckDB")
+    info_table.add_row("CLI Features", "8 commands")
+
+    console.print(info_table)
 
 
-# TODO: Add a command to generate a default devtrack config file
-# @app.command()
-# def generate_config():
-#     """Generate a default devtrack config file."""
-#     config = {
-#         "track_paths": ["/"],
-#         "exclude_paths": ["/__devtrack__/stats", "/docs", "/openapi.json"],
-#     }
-#     import json
+@app.command()
+def init(
+    db_path: str = typer.Option("devtrack_logs.db", help="Path to the database file"),
+    force: bool = typer.Option(
+        False, "--force", "-f", help="Force initialization even if database exists"
+    ),
+):
+    """🗄️ Initialize a new DevTrack database with DuckDB backend."""
+    console = Console()
 
-#     with open("devtrack.config.json", "w") as f:
-#         json.dump(config, f, indent=2)
-#     typer.echo("✅ devtrack.config.json created.")
+    if os.path.exists(db_path) and not force:
+        if not Confirm.ask(f"Database '{db_path}' already exists. Overwrite?"):
+            console.print("[yellow]Initialization cancelled.[/]")
+            raise typer.Exit(0)
+
+    try:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+        ) as progress:
+            task = progress.add_task("Initializing database...", total=None)
+            db = init_db(db_path)
+            progress.update(task, description="✅ Database initialized successfully!")
+
+        console.print(f"[bold green]✅ DevTrack database initialized at:[/] {db_path}")
+
+        # Show database info
+        stats = db.get_stats_summary()
+        table = Table(title="Database Information", border_style="green")
+        table.add_column("Property", style="cyan")
+        table.add_column("Value", style="green")
+
+        table.add_row("Database Path", db_path)
+        table.add_row("Total Requests", str(stats.get("total_requests", 0)))
+        table.add_row("Unique Endpoints", str(stats.get("unique_endpoints", 0)))
+        avg_duration = stats.get("avg_duration_ms", 0) or 0
+        table.add_row("Average Duration", f"{avg_duration:.2f} ms")
+
+        console.print(table)
+
+    except Exception as e:
+        console.print(f"[red]❌ Failed to initialize database:[/] {e}")
+        raise typer.Exit(1)
+
+
+@app.command()
+def reset(
+    db_path: str = typer.Option("devtrack_logs.db", help="Path to the database file"),
+    confirm: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
+):
+    """🗑️ Reset the DevTrack database (delete all logs)."""
+    console = Console()
+
+    if not os.path.exists(db_path):
+        console.print(f"[yellow]Database '{db_path}' does not exist.[/]")
+        raise typer.Exit(0)
+
+    if not confirm:
+        if not Confirm.ask(
+            f"Are you sure you want to reset database '{db_path}'? "
+            f"This will delete all logs."
+        ):
+            console.print("[yellow]Reset cancelled.[/]")
+            raise typer.Exit(0)
+
+    try:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+        ) as progress:
+            task = progress.add_task("Resetting database...", total=None)
+            db = DevTrackDB(db_path)
+            deleted_count = db.delete_all_logs()
+            progress.update(task, description="✅ Database reset successfully!")
+
+        console.print(
+            f"[bold green]✅ Database reset complete. "
+            f"Deleted {deleted_count} log entries.[/]"
+        )
+
+    except Exception as e:
+        console.print(f"[red]❌ Failed to reset database:[/] {e}")
+        raise typer.Exit(1)
+
+
+@app.command()
+def export(
+    output_file: str = typer.Option("devtrack_export.json", help="Output file path"),
+    db_path: str = typer.Option("devtrack_logs.db", help="Path to the database file"),
+    format: str = typer.Option("json", help="Export format: json, csv"),
+    limit: Optional[int] = typer.Option(None, help="Limit number of entries to export"),
+    path_pattern: Optional[str] = typer.Option(None, help="Filter by path pattern"),
+    status_code: Optional[int] = typer.Option(None, help="Filter by status code"),
+):
+    """📤 Export DevTrack logs to JSON or CSV file with filtering options."""
+    console = Console()
+
+    if not os.path.exists(db_path):
+        console.print(f"[red]Database '{db_path}' does not exist.[/]")
+        raise typer.Exit(1)
+
+    try:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+        ) as progress:
+            task = progress.add_task("Exporting logs...", total=None)
+
+            db = DevTrackDB(db_path)
+
+            # Get logs based on filters
+            if path_pattern:
+                entries = db.get_logs_by_path(path_pattern, limit)
+            elif status_code:
+                entries = db.get_logs_by_status_code(status_code, limit)
+            else:
+                entries = db.get_all_logs(limit)
+
+            progress.update(task, description="Writing to file...")
+
+            if format.lower() == "json":
+                with open(output_file, "w") as f:
+                    json.dump(
+                        {
+                            "export_timestamp": datetime.now().isoformat(),
+                            "total_entries": len(entries),
+                            "filters": {
+                                "limit": limit,
+                                "path_pattern": path_pattern,
+                                "status_code": status_code,
+                            },
+                            "entries": entries,
+                        },
+                        f,
+                        indent=2,
+                    )
+            elif format.lower() == "csv":
+                import csv
+
+                if entries:
+                    with open(output_file, "w", newline="") as f:
+                        writer = csv.DictWriter(f, fieldnames=entries[0].keys())
+                        writer.writeheader()
+                        writer.writerows(entries)
+
+            progress.update(task, description="✅ Export complete!")
+
+        console.print(
+            f"[bold green]✅ Exported {len(entries)} entries to:[/] " f"{output_file}"
+        )
+
+    except Exception as e:
+        console.print(f"[red]❌ Failed to export logs:[/] {e}")
+        raise typer.Exit(1)
+
+
+@app.command()
+def query(
+    db_path: str = typer.Option("devtrack_logs.db", help="Path to the database file"),
+    path_pattern: Optional[str] = typer.Option(None, help="Filter by path pattern"),
+    status_code: Optional[int] = typer.Option(None, help="Filter by status code"),
+    method: Optional[str] = typer.Option(None, help="Filter by HTTP method"),
+    limit: Optional[int] = typer.Option(50, help="Limit number of results"),
+    days: Optional[int] = typer.Option(None, help="Show logs from last N days"),
+    verbose: bool = typer.Option(
+        False, "--verbose", "-v", help="Show detailed information"
+    ),
+):
+    """🔍 Query DevTrack logs with advanced filtering and search capabilities."""
+    console = Console()
+
+    if not os.path.exists(db_path):
+        console.print(f"[red]Database '{db_path}' does not exist.[/]")
+        raise typer.Exit(1)
+
+    try:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+        ) as progress:
+            task = progress.add_task("Querying logs...", total=None)
+
+            db = DevTrackDB(db_path)
+
+            # Get logs based on filters
+            if path_pattern:
+                entries = db.get_logs_by_path(path_pattern, limit)
+            elif status_code:
+                entries = db.get_logs_by_status_code(status_code, limit)
+            else:
+                entries = db.get_all_logs(limit)
+
+            # Apply additional filters
+            if method:
+                entries = [
+                    e for e in entries if e.get("method", "").upper() == method.upper()
+                ]
+
+            if days:
+                cutoff_date = datetime.now() - timedelta(days=days)
+                entries = [
+                    e
+                    for e in entries
+                    if datetime.fromisoformat(e["timestamp"].replace("Z", "+00:00"))
+                    >= cutoff_date
+                ]
+
+            progress.update(task, description="✅ Query complete!")
+
+        if not entries:
+            console.print("[yellow]No logs found matching the criteria.[/]")
+            return
+
+        # Display results
+        console.rule("[bold green]📊 Query Results[/]", style="green")
+
+        if verbose:
+            # Detailed view
+            for i, entry in enumerate(entries[:10], 1):  # Show first 10 in detail
+                panel = Panel(
+                    f"[bold]Path:[/] {entry.get('path', 'N/A')}\n"
+                    f"[bold]Method:[/] {entry.get('method', 'N/A')}\n"
+                    f"[bold]Status:[/] {entry.get('status_code', 'N/A')}\n"
+                    f"[bold]Duration:[/] {entry.get('duration_ms', 0):.2f} ms\n"
+                    f"[bold]Timestamp:[/] {entry.get('timestamp', 'N/A')}\n"
+                    f"[bold]Client IP:[/] {entry.get('client_ip', 'N/A')}\n"
+                    f"[bold]User Agent:[/] {entry.get('user_agent', 'N/A')[:50]}...",
+                    title=f"Entry {i}",
+                    border_style="blue",
+                )
+                console.print(panel)
+        else:
+            # Table view
+            table = Table(
+                title=f"Query Results ({len(entries)} entries)", border_style="blue"
+            )
+            table.add_column("Path", style="cyan", no_wrap=True)
+            table.add_column("Method", style="green")
+            table.add_column("Status", justify="center", style="yellow")
+            table.add_column("Duration (ms)", justify="right", style="magenta")
+            table.add_column("Timestamp", style="dim")
+
+            for entry in entries[:limit]:
+                table.add_row(
+                    entry.get("path", "N/A"),
+                    entry.get("method", "N/A"),
+                    str(entry.get("status_code", "N/A")),
+                    f"{entry.get('duration_ms', 0):.2f}",
+                    entry.get("timestamp", "N/A")[:19],  # Show only date and time
+                )
+
+            console.print(table)
+
+        console.print(f"[bold green]📊 Total results:[/] {len(entries)}")
+
+    except Exception as e:
+        console.print(f"[red]❌ Failed to query logs:[/] {e}")
+        raise typer.Exit(1)
+
+
+@app.command()
+def monitor(
+    db_path: str = typer.Option("devtrack_logs.db", help="Path to the database file"),
+    interval: int = typer.Option(5, help="Refresh interval in seconds"),
+    top: int = typer.Option(10, help="Show top N endpoints"),
+):
+    """📊 Monitor DevTrack logs in real-time with live dashboard."""
+    console = Console()
+
+    if not os.path.exists(db_path):
+        console.print(f"[red]Database '{db_path}' does not exist.[/]")
+        raise typer.Exit(1)
+
+    console.print("[bold green]🔍 Starting real-time monitoring...[/]")
+    console.print(
+        f"[dim]Refresh interval: {interval} seconds | Press Ctrl+C to stop[/]"
+    )
+
+    try:
+        db = DevTrackDB(db_path)
+        last_count = 0
+
+        while True:
+            try:
+                # Clear screen
+                console.clear()
+
+                # Get current stats
+                stats = db.get_stats_summary()
+                current_count = stats.get("total_requests", 0)
+                new_requests = current_count - last_count
+
+                # Header
+                console.rule(
+                    f"[bold green]📊 DevTrack Real-time Monitor[/] | "
+                    f"[dim]{datetime.now().strftime('%H:%M:%S')}[/]",
+                    style="green",
+                )
+
+                # Summary stats
+                summary_table = Table(title="Live Statistics", border_style="green")
+                summary_table.add_column("Metric", style="cyan")
+                summary_table.add_column("Value", style="green")
+
+                summary_table.add_row("Total Requests", str(current_count))
+                summary_table.add_row("New Requests (last interval)", str(new_requests))
+                summary_table.add_row(
+                    "Unique Endpoints", str(stats.get("unique_endpoints", 0))
+                )
+                avg_duration = stats.get("avg_duration_ms", 0) or 0
+                summary_table.add_row("Avg Duration", f"{avg_duration:.2f} ms")
+                success_count = stats.get("success_count", 0) or 0
+                summary_table.add_row(
+                    "Success Rate",
+                    f"{success_count / max(current_count, 1) * 100:.1f}%",
+                )
+
+                console.print(summary_table)
+
+                # Recent logs
+                recent_logs = db.get_all_logs(limit=top)
+                if recent_logs:
+                    console.rule("[bold cyan]📈 Recent Activity[/]", style="cyan")
+                    recent_table = Table(border_style="blue")
+                    recent_table.add_column("Time", style="dim")
+                    recent_table.add_column("Path", style="cyan")
+                    recent_table.add_column("Method", style="green")
+                    recent_table.add_column("Status", justify="center", style="yellow")
+                    recent_table.add_column(
+                        "Duration", justify="right", style="magenta"
+                    )
+
+                    for log in recent_logs[:top]:
+                        timestamp = log.get("timestamp", "")[
+                            :19
+                        ]  # Show only date and time
+                        recent_table.add_row(
+                            timestamp,
+                            log.get("path", "N/A"),
+                            log.get("method", "N/A"),
+                            str(log.get("status_code", "N/A")),
+                            f"{log.get('duration_ms', 0):.2f} ms",
+                        )
+
+                    console.print(recent_table)
+
+                last_count = current_count
+
+                # Wait for next interval
+                import time as time_module
+
+                time_module.sleep(interval)
+
+            except KeyboardInterrupt:
+                console.print("\n[yellow]Monitoring stopped by user.[/]")
+                break
+            except Exception as e:
+                console.print(f"[red]Error during monitoring: {e}[/]")
+                import time as time_module
+
+                time_module.sleep(interval)
+
+    except Exception as e:
+        console.print(f"[red]❌ Failed to start monitoring:[/] {e}")
+        raise typer.Exit(1)
 
 
 @app.command()
 def stat(
     top: int = typer.Option(None, help="Show top N endpoints"),
     sort_by: str = typer.Option("hits", help="Sort by 'hits' or 'latency'"),
+    db_path: str = typer.Option("devtrack_logs.db", help="Path to the database file"),
+    use_endpoint: bool = typer.Option(
+        False, "--endpoint", "-e", help="Use HTTP endpoint instead of database"
+    ),
 ):
-    """Display collected statistics."""
-    import json
-    from collections import defaultdict
-
-    import requests
-    from rich.console import Console
-    from rich.panel import Panel
-    from rich.table import Table
-
+    """📈 Display comprehensive API statistics and endpoint usage analytics."""
     console = Console()
     console.rule("[bold green]📊 DevTrack Stats CLI[/]", style="green")
 
-    stats_url = detect_devtrack_endpoint()
+    if use_endpoint:
+        # Use HTTP endpoint
+        stats_url = detect_devtrack_endpoint()
 
-    # Spinner while fetching
-    with console.status("[bold cyan]Fetching stats from DevTrack...[/]"):
+        with console.status("[bold cyan]Fetching stats from DevTrack...[/]"):
+            try:
+                response = requests.get(stats_url)
+                response.raise_for_status()
+                data = response.json()
+                entries = data.get("entries", [])
+            except Exception as e:
+                console.print(f"[red]❌ Failed to fetch stats from {stats_url}[/]\n{e}")
+                raise typer.Exit(1)
+    else:
+        # Use database
+        if not os.path.exists(db_path):
+            console.print(f"[red]Database '{db_path}' does not exist.[/]")
+            raise typer.Exit(1)
+
         try:
-            response = requests.get(stats_url)
-            response.raise_for_status()
-            data = response.json()
-            entries = data.get("entries", [])
+            db = DevTrackDB(db_path)
+            entries = db.get_all_logs()
         except Exception as e:
-            console.print(f"[red]❌ Failed to fetch stats from {stats_url}[/]\n{e}")
+            console.print(f"[red]❌ Failed to read database:[/] {e}")
             raise typer.Exit(1)
 
     # 🟡 No entries case
@@ -128,14 +519,16 @@ def stat(
         console.print(panel)
         return
 
+    from collections import defaultdict
+
     average_stats = defaultdict(lambda: {"hits": 0, "total_latency": 0.0})
 
     for entry in entries:
-        path = entry["path_pattern"]
-        method = entry["method"]
+        path = entry.get("path_pattern", entry.get("path", ""))
+        method = entry.get("method", "")
         key = (path, method)
         average_stats[key]["hits"] += 1
-        average_stats[key]["total_latency"] += entry["duration_ms"]
+        average_stats[key]["total_latency"] += entry.get("duration_ms", 0)
 
     # Sort by the specified criterion
     if sort_by == "latency":
@@ -173,8 +566,8 @@ def stat(
     console.print(f"[bold blue]📦 Total requests analyzed:[/] {len(entries)}\n")
 
     # 💾 Ask for export
-    if typer.confirm("💾 Would you like to export these stats as JSON?", default=False):
-        file_path = typer.prompt("Enter file path", default="devtrack_stats.json")
+    if Confirm.ask("💾 Would you like to export these stats as JSON?", default=False):
+        file_path = Prompt.ask("Enter file path", default="devtrack_stats.json")
         try:
             with open(file_path, "w") as f:
                 json.dump(entries, f, indent=2)
@@ -183,16 +576,286 @@ def stat(
             console.print(f"[red]❌ Failed to write file: {e}[/]")
 
 
-if __name__ == "__main__":
-    if "--help" in sys.argv or "-h" in sys.argv:
-        console = Console()
-        console.print("[bold blue]🚀 DevTrack CLI[/]")
-        console.print("Usage:")
-        console.print("  devtrack stat     [green]Show API stats[/]")
-        console.print("  devtrack version  [green]Show SDK version[/]")
-        console.print(
-            "\nRun [yellow]devtrack COMMAND --help[/] for command-specific options."
-        )
-        raise typer.Exit()
+# @app.command()
+# def config(
+#     action: str = typer.Argument(..., help="Action: 'show', 'set', 'reset'"),
+#     key: Optional[str] = typer.Option(None, help="Configuration key"),
+#     value: Optional[str] = typer.Option(None, help="Configuration value"),
+#     config_file: str = typer.Option("devtrack.json", help="Configuration file path")
+# ):
+#     """⚙️ Manage DevTrack configuration settings and preferences."""
+#     console = Console()
 
+#     config_path = Path(config_file)
+
+#     if action == "show":
+#         if config_path.exists():
+#             try:
+#                 with open(config_path, 'r') as f:
+#                     config_data = json.load(f)
+
+#                 table = Table(title="DevTrack Configuration", border_style="green")
+#                 table.add_column("Key", style="cyan")
+#                 table.add_column("Value", style="green")
+
+#                 for k, v in config_data.items():
+#                     table.add_row(k, str(v))
+
+#                 console.print(table)
+#             except Exception as e:
+#                 console.print(f"[red]❌ Failed to read config:[/] {e}")
+#         else:
+#             console.print(
+#                 f"[yellow]Configuration file '{config_file}' does not exist.[/]"
+#             )
+
+#     elif action == "set":
+#         if not key or not value:
+#             console.print(
+#                 "[red]❌ Both key and value are required for 'set' action.[/]"
+#             )
+#             raise typer.Exit(1)
+
+#         # Load existing config or create new
+#         config_data = {}
+#         if config_path.exists():
+#             try:
+#                 with open(config_path, 'r') as f:
+#                     config_data = json.load(f)
+#             except Exception as e:
+#                 console.print(
+#                     f"[yellow]Warning: Could not read existing config: {e}[/]"
+#                 )
+
+#         # Set the value
+#         config_data[key] = value
+
+#         # Save config
+#         try:
+#             with open(config_path, 'w') as f:
+#                 json.dump(config_data, f, indent=2)
+#             console.print(f"[bold green]✅ Set {key} = {value}[/]")
+#         except Exception as e:
+#             console.print(f"[red]❌ Failed to save config:[/] {e}")
+#             raise typer.Exit(1)
+
+#     elif action == "reset":
+#         if config_path.exists():
+#             if Confirm.ask(
+#                 f"Are you sure you want to reset configuration file '{config_file}'?"
+#             ):
+#                 try:
+#                     config_path.unlink()
+#                     console.print(
+#                         f"[bold green]✅ Configuration file "
+#                         f"'{config_file}' deleted.[/]"
+#                     )
+#                 except Exception as e:
+#                     console.print(f"[red]❌ Failed to delete config:[/] {e}")
+#                     raise typer.Exit(1)
+#             else:
+#                 console.print("[yellow]Reset cancelled.[/]")
+#         else:
+#             console.print(
+#                 f"[yellow]Configuration file '{config_file}' does not exist.[/]"
+#             )
+
+#     else:
+#         console.print(f"[red]❌ Unknown action: {action}[/]")
+#         console.print("Available actions: show, set, reset")
+#         raise typer.Exit(1)
+
+
+@app.command()
+def health(
+    db_path: str = typer.Option("devtrack_logs.db", help="Path to the database file"),
+    endpoint: bool = typer.Option(
+        False, "--endpoint", "-e", help="Check HTTP endpoint health"
+    ),
+):
+    """🏥 Check DevTrack system health and component status."""
+    console = Console()
+    console.rule("[bold green]🏥 DevTrack Health Check[/]", style="green")
+
+    health_status = {"status": "healthy", "checks": []}
+
+    # Check database
+    if os.path.exists(db_path):
+        try:
+            db = DevTrackDB(db_path)
+            stats = db.get_stats_summary()
+            health_status["checks"].append(
+                {
+                    "component": "Database",
+                    "status": "✅ Healthy",
+                    "details": f"Total requests: " f"{stats.get('total_requests', 0)}",
+                }
+            )
+        except Exception as e:
+            health_status["checks"].append(
+                {
+                    "component": "Database",
+                    "status": "❌ Unhealthy",
+                    "details": str(e),
+                }
+            )
+            health_status["status"] = "unhealthy"
+    else:
+        health_status["checks"].append(
+            {
+                "component": "Database",
+                "status": "⚠️ Not Found",
+                "details": f"Database file '{db_path}' does not exist",
+            }
+        )
+
+    # Check HTTP endpoint if requested
+    if endpoint:
+        try:
+            stats_url = detect_devtrack_endpoint()
+            response = requests.get(stats_url, timeout=5)
+            if response.status_code == 200:
+                health_status["checks"].append(
+                    {
+                        "component": "HTTP Endpoint",
+                        "status": "✅ Healthy",
+                        "details": f"Endpoint: {stats_url}",
+                    }
+                )
+            else:
+                health_status["checks"].append(
+                    {
+                        "component": "HTTP Endpoint",
+                        "status": "❌ Unhealthy",
+                        "details": f"HTTP {response.status_code}",
+                    }
+                )
+                health_status["status"] = "unhealthy"
+        except Exception as e:
+            health_status["checks"].append(
+                {
+                    "component": "HTTP Endpoint",
+                    "status": "❌ Unreachable",
+                    "details": str(e),
+                }
+            )
+            health_status["status"] = "unhealthy"
+
+    # Display results
+    table = Table(
+        title="Health Check Results",
+        border_style="green" if health_status["status"] == "healthy" else "red",
+    )
+    table.add_column("Component", style="cyan")
+    table.add_column("Status", style="green")
+    table.add_column("Details", style="dim")
+
+    for check in health_status["checks"]:
+        table.add_row(check["component"], check["status"], check["details"])
+
+    console.print(table)
+
+    # Overall status
+    if health_status["status"] == "healthy":
+        console.print("[bold green]🎉 All systems are healthy![/]")
+    else:
+        console.print(
+            "[bold red]⚠️ Some issues detected. Please check the details above.[/]"
+        )
+        raise typer.Exit(1)
+
+
+def show_help():
+    """Display enhanced help information."""
+    console = Console()
+
+    # Header
+    console.print(
+        "[bold blue]🚀 DevTrack CLI[/] - "
+        "[dim]Comprehensive request tracking and analytics toolkit[/]"
+    )
+    console.print()
+
+    # Quick start
+    console.print("[bold green]Quick Start:[/]")
+    console.print("  [cyan]devtrack init[/]     # Initialize database")
+    console.print("  [cyan]devtrack stat[/]     # View statistics")
+    console.print("  [cyan]devtrack monitor[/]  # Real-time monitoring")
+    console.print()
+
+    # Commands overview
+    console.print("[bold green]Available Commands:[/]")
+
+    commands_table = Table(show_header=False, box=None, padding=(0, 1))
+    commands_table.add_column("Command", style="cyan", no_wrap=True)
+    commands_table.add_column("Description", style="dim")
+
+    commands_table.add_row("version", "📦 Show SDK version and build information")
+    commands_table.add_row(
+        "init", "🗄️ Initialize a new DevTrack database with DuckDB backend"
+    )
+    commands_table.add_row("reset", "🗑️ Reset the DevTrack database (delete all logs)")
+    commands_table.add_row(
+        "export", "📤 Export DevTrack logs to JSON or CSV file with filtering"
+    )
+    commands_table.add_row(
+        "query", "🔍 Query DevTrack logs with advanced filtering and search"
+    )
+    commands_table.add_row(
+        "monitor", "📊 Monitor DevTrack logs in real-time with live dashboard"
+    )
+    commands_table.add_row(
+        "stat", "📈 Display comprehensive API statistics and endpoint analytics"
+    )
+    commands_table.add_row(
+        "health", "🏥 Check DevTrack system health and component status"
+    )
+
+    console.print(commands_table)
+    console.print()
+
+    # Examples
+    console.print("[bold green]Examples:[/]")
+    console.print("  [dim]# Initialize database[/]")
+    console.print("  [cyan]devtrack init --force[/]")
+    console.print()
+    console.print("  [dim]# Real-time monitoring[/]")
+    console.print("  [cyan]devtrack monitor --interval 3 --top 15[/]")
+    console.print()
+    console.print("  [dim]# Query logs with filters[/]")
+    console.print("  [cyan]devtrack query --status-code 404 --days 7 --verbose[/]")
+    console.print()
+    console.print("  [dim]# Export logs[/]")
+    console.print("  [cyan]devtrack export --format csv --limit 1000[/]")
+    console.print()
+    console.print("  [dim]# Health check[/]")
+    console.print("  [cyan]devtrack health --endpoint[/]")
+    console.print()
+
+    # Help info
+    console.print("[bold green]Getting Help:[/]")
+    console.print(
+        "  [cyan]devtrack COMMAND --help[/]  "
+        "[dim]Show detailed help for a specific command[/]"
+    )
+    console.print()
+
+    # Links
+    console.print("[bold green]Resources:[/]")
+    console.print(
+        "  [dim]GitHub:[/] [blue]https://github.com/mahesh-solanke/devtrack-sdk[/]"
+    )
+    console.print(
+        "  [dim]Documentation:[/] [blue]https://devtrack-sdk.readthedocs.io[/]"
+    )
+    console.print()
+
+
+@app.command()
+def help():
+    """📚 Show comprehensive help and usage information."""
+    show_help()
+
+
+if __name__ == "__main__":
     app()

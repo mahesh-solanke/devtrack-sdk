@@ -99,3 +99,8 @@ dmypy.json
 
 # Cython debug symbols
 cython_debug/
+
+
+# Test databases
+*.db
+*.wal
