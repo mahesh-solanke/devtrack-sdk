@@ -1,6 +1,6 @@
 # FastAPI Integration Guide
 
-This guide shows you how to integrate DevTrack SDK with your FastAPI application for comprehensive request tracking and analytics.
+This guide shows you how to integrate DevTrack SDK v0.3.0 with your FastAPI application for comprehensive request tracking and analytics using DuckDB for persistent storage.
 
 ## Quick Start
 
@@ -10,7 +10,15 @@ This guide shows you how to integrate DevTrack SDK with your FastAPI application
 pip install devtrack-sdk
 ```
 
-### 2. Add Middleware to Your FastAPI App
+### 2. Initialize Database
+
+Initialize the DuckDB database for persistent log storage:
+
+```bash
+devtrack init --force
+```
+
+### 3. Add Middleware to Your FastAPI App
 
 ```python
 from fastapi import FastAPI
@@ -26,7 +34,7 @@ app.include_router(devtrack_router)
 app.add_middleware(DevTrackMiddleware)
 ```
 
-### 3. Test the Integration
+### 4. Test the Integration
 
 Start your FastAPI server:
 
@@ -40,148 +48,124 @@ Test the tracking endpoints:
 # Get tracking statistics
 curl http://localhost:8000/__devtrack__/stats
 
-# Manually add tracking data
-curl -X POST http://localhost:8000/__devtrack__/track \
-  -H "Content-Type: application/json" \
-  -d '{"custom": "data"}'
+# View limited statistics
+curl http://localhost:8000/__devtrack__/stats?limit=5
 ```
+
+---
 
 ## Advanced Configuration
 
-### Custom Exclude Paths
-
-You can customize which paths to exclude from tracking:
-
-```python
-from fastapi import FastAPI
-from devtrack_sdk.middleware import DevTrackMiddleware
-
-app = FastAPI()
-
-# Exclude specific paths from tracking
-app.add_middleware(
-    DevTrackMiddleware,
-    exclude_path=[
-        "/health",
-        "/metrics",
-        "/docs",
-        "/redoc",
-        "/openapi.json"
-    ]
-)
-```
-
-### Environment-Specific Configuration
-
-Configure different exclude paths for different environments:
+### Environment-specific Configuration
 
 ```python
 import os
 from fastapi import FastAPI
 from devtrack_sdk.middleware import DevTrackMiddleware
 
-# Environment-specific exclude paths
-EXCLUDE_PATHS = {
-    'development': [
-        "/docs",
-        "/redoc", 
-        "/openapi.json",
-        "/health",
-        "/debug"
-    ],
-    'production': [
-        "/health",
-        "/metrics",
-        "/admin"
-    ],
-    'staging': [
-        "/health",
-        "/admin"
-    ]
-}
-
 app = FastAPI()
 
-env = os.getenv('ENV', 'development')
-exclude_paths = EXCLUDE_PATHS.get(env, [])
+# Environment-specific configuration
+exclude_paths = {
+    'development': ['/docs', '/redoc', '/health'],
+    'production': ['/health', '/metrics'],
+    'staging': ['/health', '/admin']
+}
 
-app.add_middleware(DevTrackMiddleware, exclude_path=exclude_paths)
+env = os.getenv('ENVIRONMENT', 'development')
+app.add_middleware(
+    DevTrackMiddleware,
+    exclude_path=exclude_paths.get(env, [])
+)
 ```
 
 ### Custom Middleware Configuration
 
-For more advanced customization, you can subclass the middleware:
+```python
+from fastapi import FastAPI
+from devtrack_sdk.middleware import DevTrackMiddleware
+
+app = FastAPI()
+
+# Custom middleware with exclude paths
+app.add_middleware(
+    DevTrackMiddleware,
+    exclude_path=[
+        "/api/health",
+        "/api/metrics",
+        "/admin",
+        "/static",
+        "/media"
+    ]
+)
+```
+
+### Database Configuration
 
 ```python
 from fastapi import FastAPI
 from devtrack_sdk.middleware import DevTrackMiddleware
-from devtrack_sdk.middleware.extractor import extract_devtrack_log_data
-from datetime import datetime, timezone
-import uuid
-
-class CustomDevTrackMiddleware(DevTrackMiddleware):
-    def __init__(self, app, exclude_path: list[str] = []):
-        super().__init__(app, exclude_path)
-        self.app_version = "1.0.0"
-        self.environment = os.getenv('ENV', 'development')
-    
-    async def dispatch(self, request, call_next):
-        if request.url.path in self.skip_paths:
-            return await call_next(request)
-
-        start_time = datetime.now(timezone.utc)
-        
-        # Read and buffer the body
-        body = await request.body()
-        
-        async def receive():
-            return {
-                "type": "http.request",
-                "body": body,
-                "more_body": False,
-            }
-        
-        # Rebuild the request
-        request = Request(request.scope, receive)
-        response = await call_next(request)
-        
-        try:
-            # Extract base log data
-            log_data = await extract_devtrack_log_data(request, response, start_time)
-            
-            # Add custom fields
-            log_data.update({
-                "app_version": self.app_version,
-                "environment": self.environment,
-                "custom_field": "custom_value",
-                "request_id": str(uuid.uuid4()),
-            })
-            
-            DevTrackMiddleware.stats.append(log_data)
-        except Exception as e:
-            print(f"[CustomDevTrackMiddleware] Logging error: {e}")
-        
-        return response
+from devtrack_sdk.database import DevTrackDB
 
 app = FastAPI()
-app.add_middleware(CustomDevTrackMiddleware)
+
+# Custom database path
+db_path = "/custom/path/devtrack_logs.db"
+db = DevTrackDB(db_path)
+
+app.add_middleware(DevTrackMiddleware, db_instance=db)
 ```
+
+---
 
 ## API Endpoints
 
 ### GET /__devtrack__/stats
 
-Returns all tracked request data:
+Returns comprehensive statistics and logs from the database.
 
+#### Query Parameters
+- `limit` (int, optional): Limit number of entries returned
+- `offset` (int, default: 0): Offset for pagination
+- `path_pattern` (str, optional): Filter by path pattern
+- `status_code` (int, optional): Filter by status code
+
+#### Example Usage
+```bash
+# Get all statistics
+curl http://localhost:8000/__devtrack__/stats
+
+# Get limited results
+curl http://localhost:8000/__devtrack__/stats?limit=10
+
+# Filter by status code
+curl http://localhost:8000/__devtrack__/stats?status_code=404
+
+# Filter by path pattern
+curl http://localhost:8000/__devtrack__/stats?path_pattern=/api/users
+```
+
+#### Response Format
 ```json
 {
-    "total": 42,
+    "summary": {
+        "total_requests": 1500,
+        "unique_endpoints": 25,
+        "avg_duration_ms": 125.5,
+        "min_duration_ms": 10.2,
+        "max_duration_ms": 2500.0,
+        "success_count": 1400,
+        "error_count": 100
+    },
+    "total": 1500,
     "entries": [
         {
+            "id": 1,
             "path": "/api/users",
+            "path_pattern": "/api/users",
             "method": "GET",
             "status_code": 200,
-            "timestamp": "2024-03-20T10:00:00Z",
+            "timestamp": "2024-01-01T10:00:00Z",
             "client_ip": "127.0.0.1",
             "duration_ms": 150.5,
             "user_agent": "Mozilla/5.0...",
@@ -192,149 +176,113 @@ Returns all tracked request data:
             "response_size": 1024,
             "user_id": "1",
             "role": "admin",
-            "trace_id": "uuid-here"
+            "trace_id": "uuid-here",
+            "created_at": "2024-01-01T10:00:00Z"
         }
-    ]
+    ],
+    "filters": {
+        "limit": 50,
+        "offset": 0,
+        "path_pattern": null,
+        "status_code": null
+    }
 }
 ```
 
-### POST /__devtrack__/track
+### DELETE /__devtrack__/logs
 
-Manually add custom tracking data:
+Delete logs from the database with various filtering options.
+
+#### Query Parameters
+- `all_logs` (bool, default: false): Delete all logs
+- `path_pattern` (str, optional): Delete logs by path pattern
+- `status_code` (int, optional): Delete logs by status code
+- `older_than_days` (int, optional): Delete logs older than N days
+- `log_ids` (str, optional): Comma-separated list of log IDs to delete
+
+#### Example Usage
+```bash
+# Delete all logs
+curl -X DELETE http://localhost:8000/__devtrack__/logs?all_logs=true
+
+# Delete logs by path pattern
+curl -X DELETE http://localhost:8000/__devtrack__/logs?path_pattern=/api/users
+
+# Delete logs by status code
+curl -X DELETE http://localhost:8000/__devtrack__/logs?status_code=404
+
+# Delete old logs
+curl -X DELETE http://localhost:8000/__devtrack__/logs?older_than_days=30
+```
+
+#### Response Format
+```json
+{
+    "message": "Successfully deleted 150 log entries",
+    "deleted_count": 150,
+    "criteria": {
+        "all_logs": false,
+        "path_pattern": "/api/users",
+        "status_code": null,
+        "older_than_days": null,
+        "log_ids": null
+    }
+}
+```
+
+---
+
+## CLI Integration
+
+### Database Management
 
 ```bash
-curl -X POST http://localhost:8000/__devtrack__/track \
-  -H "Content-Type: application/json" \
-  -d '{
-    "custom_event": "user_login",
-    "user_id": "123",
-    "timestamp": "2024-03-20T10:00:00Z"
-  }'
+# Initialize database
+devtrack init --force
+
+# Reset database
+devtrack reset --yes
+
+# Show statistics
+devtrack stat
 ```
 
-## Integration with FastAPI Features
+### Real-time Monitoring
 
-### Path Parameters and Query Parameters
+```bash
+# Start monitoring
+devtrack monitor --interval 3
 
-FastAPI automatically captures path and query parameters:
-
-```python
-from fastapi import FastAPI, Path, Query
-from pydantic import BaseModel
-
-app = FastAPI()
-app.add_middleware(DevTrackMiddleware)
-
-class User(BaseModel):
-    name: str
-    email: str
-
-@app.get("/users/{user_id}")
-async def get_user(
-    user_id: int = Path(..., description="User ID"),
-    include_details: bool = Query(False, description="Include user details")
-):
-    return {"user_id": user_id, "include_details": include_details}
-
-@app.post("/users")
-async def create_user(user: User):
-    return {"message": "User created", "user": user}
+# Monitor with custom settings
+devtrack monitor --interval 5 --top 20
 ```
 
-The middleware will track:
-- Path parameters: `{"user_id": 123}`
-- Query parameters: `{"include_details": true}`
-- Request body: `{"name": "John", "email": "john@example.com"}`
+### Export and Query
 
-### Authentication and User Context
+```bash
+# Export logs
+devtrack export --format json --limit 1000
 
-If you're using FastAPI's authentication, the middleware can capture user information:
+# Query logs
+devtrack query --status-code 404 --days 7
 
-```python
-from fastapi import FastAPI, Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from devtrack_sdk.middleware import DevTrackMiddleware
-
-app = FastAPI()
-app.add_middleware(DevTrackMiddleware)
-
-security = HTTPBearer()
-
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    # Your authentication logic here
-    token = credentials.credentials
-    # Validate token and return user
-    return {"user_id": "123", "role": "admin"}
-
-@app.get("/protected")
-async def protected_route(current_user = Depends(get_current_user)):
-    return {"message": "This is protected", "user": current_user}
+# Health check
+devtrack health
 ```
 
-### Background Tasks
-
-FastAPI background tasks are also tracked:
-
-```python
-from fastapi import FastAPI, BackgroundTasks
-from devtrack_sdk.middleware import DevTrackMiddleware
-
-app = FastAPI()
-app.add_middleware(DevTrackMiddleware)
-
-def send_notification(email: str, message: str):
-    # Background task logic
-    pass
-
-@app.post("/notifications")
-async def create_notification(
-    email: str,
-    message: str,
-    background_tasks: BackgroundTasks
-):
-    background_tasks.add_task(send_notification, email, message)
-    return {"message": "Notification scheduled"}
-```
+---
 
 ## Security Considerations
 
-### Sensitive Data Filtering
-
-The middleware automatically filters sensitive data:
-
-```python
-# Automatically filtered fields
-SENSITIVE_FIELDS = ['password', 'token', 'secret', 'key']
-
-# Custom filtering in middleware
-class SecureDevTrackMiddleware(DevTrackMiddleware):
-    async def dispatch(self, request, call_next):
-        # ... existing logic ...
-        
-        # Additional filtering
-        if 'request_body' in log_data:
-            body = log_data['request_body']
-            for field in ['ssn', 'credit_card', 'api_key']:
-                if field in body:
-                    body[field] = '***FILTERED***'
-        
-        return response
-```
-
 ### Access Control
 
-Consider adding authentication to the stats endpoint in production:
-
 ```python
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer
-from devtrack_sdk.controller import router as devtrack_router
 
-app = FastAPI()
 security = HTTPBearer()
 
 async def verify_admin_token(credentials = Depends(security)):
-    # Verify admin token
     if not is_admin_token(credentials.credentials):
         raise HTTPException(status_code=403, detail="Admin access required")
 
@@ -345,214 +293,262 @@ app.include_router(
 )
 ```
 
-## Performance Considerations
-
-### Memory Management
-
-The middleware stores data in memory. For production applications:
+### Sensitive Data Filtering
 
 ```python
-from collections import deque
 from devtrack_sdk.middleware import DevTrackMiddleware
 
-class LimitedDevTrackMiddleware(DevTrackMiddleware):
-    MAX_ENTRIES = 1000
-    
+class SecureDevTrackMiddleware(DevTrackMiddleware):
     async def dispatch(self, request, call_next):
-        # ... existing logic ...
+        response = await super().dispatch(request, call_next)
         
-        # Limit stored entries
-        if len(DevTrackMiddleware.stats) >= self.MAX_ENTRIES:
-            DevTrackMiddleware.stats.pop(0)  # Remove oldest entry
+        # Additional filtering
+        if hasattr(response, 'log_data') and 'request_body' in response.log_data:
+            body = response.log_data['request_body']
+            for field in ['ssn', 'credit_card', 'api_key']:
+                if field in body:
+                    body[field] = '***FILTERED***'
         
         return response
 ```
 
-### Async Support
+---
 
-FastAPI is built on async/await, and the middleware fully supports it:
+## Performance Optimization
 
-```python
-import asyncio
-from fastapi import FastAPI
-from devtrack_sdk.middleware import DevTrackMiddleware
-
-app = FastAPI()
-app.add_middleware(DevTrackMiddleware)
-
-@app.get("/async-example")
-async def async_endpoint():
-    await asyncio.sleep(0.1)  # Simulate async work
-    return {"message": "Async response"}
-```
-
-## Testing
-
-### Unit Tests
+### Exclude High-Traffic Paths
 
 ```python
-from fastapi.testclient import TestClient
-from devtrack_sdk.middleware import DevTrackMiddleware
-
-def test_middleware_tracking():
-    from fastapi import FastAPI
-    
-    app = FastAPI()
-    app.add_middleware(DevTrackMiddleware)
-    
-    client = TestClient(app)
-    
-    # Make a request
-    response = client.get("/test")
-    
-    # Check that stats were recorded
-    stats_response = client.get("/__devtrack__/stats")
-    stats = stats_response.json()
-    
-    assert stats["total"] > 0
-    assert len(stats["entries"]) > 0
+app.add_middleware(
+    DevTrackMiddleware,
+    exclude_path=[
+        "/health",
+        "/metrics",
+        "/docs",
+        "/redoc",
+        "/openapi.json",
+        "/favicon.ico"
+    ]
+)
 ```
 
-### Integration Tests
+### Custom Performance Monitoring
 
 ```python
-import pytest
-from fastapi.testclient import TestClient
+import time
 from devtrack_sdk.middleware import DevTrackMiddleware
 
-@pytest.fixture
-def client():
-    from fastapi import FastAPI
-    
-    app = FastAPI()
-    app.add_middleware(DevTrackMiddleware)
-    
-    return TestClient(app)
-
-def test_stats_endpoint(client):
-    response = client.get("/__devtrack__/stats")
-    assert response.status_code == 200
-    
-    data = response.json()
-    assert "total" in data
-    assert "entries" in data
-
-def test_track_endpoint(client):
-    test_data = {"test": "data"}
-    response = client.post("/__devtrack__/track", json=test_data)
-    assert response.status_code == 200
-    assert response.json()["ok"] == True
+class PerformanceMonitoringMiddleware(DevTrackMiddleware):
+    async def dispatch(self, request, call_next):
+        start_time = time.time()
+        
+        try:
+            response = await super().dispatch(request, call_next)
+            
+            # Log performance metrics
+            duration = time.time() - start_time
+            if duration > 1.0:  # Log slow requests
+                print(f"Slow request: {request.url.path} took {duration:.2f}s")
+            
+            return response
+        except Exception as e:
+            duration = time.time() - start_time
+            print(f"Request failed: {request.url.path} after {duration:.2f}s: {e}")
+            raise
 ```
+
+---
+
+## Integration with Monitoring Tools
+
+### Prometheus Integration
+
+```python
+from prometheus_client import Counter, Histogram, Gauge
+from devtrack_sdk.middleware import DevTrackMiddleware
+import time
+
+# Metrics
+request_count = Counter('devtrack_requests_total', 'Total requests', ['method', 'path', 'status'])
+request_duration = Histogram('devtrack_request_duration_seconds', 'Request duration')
+active_requests = Gauge('devtrack_active_requests', 'Active requests')
+
+class PrometheusDevTrackMiddleware(DevTrackMiddleware):
+    async def dispatch(self, request, call_next):
+        start_time = time.time()
+        active_requests.inc()
+        
+        try:
+            response = await super().dispatch(request, call_next)
+            
+            # Record metrics
+            request_count.labels(
+                method=request.method,
+                path=request.url.path,
+                status=response.status_code
+            ).inc()
+            
+            request_duration.observe(time.time() - start_time)
+            
+            return response
+        finally:
+            active_requests.dec()
+```
+
+---
 
 ## Deployment
 
-### Production Configuration
-
-```python
-import os
-from fastapi import FastAPI
-from devtrack_sdk.middleware import DevTrackMiddleware
-
-app = FastAPI()
-
-# Production middleware configuration
-if os.getenv('ENVIRONMENT') == 'production':
-    app.add_middleware(
-        DevTrackMiddleware,
-        exclude_path=[
-            "/health",
-            "/metrics",
-            "/admin"
-        ]
-    )
-else:
-    # Development configuration
-    app.add_middleware(DevTrackMiddleware)
-```
-
-### Docker Deployment
+### Docker Configuration
 
 ```dockerfile
 FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install -r requirements.txt
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
 
+# Copy requirements and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
 COPY . .
 
+# Create directory for DevTrack database
+RUN mkdir -p /app/data
+
+# Set environment variables
+ENV DEVTRACK_DB_PATH=/app/data/devtrack_logs.db
+ENV ENVIRONMENT=production
+
+# Expose port
+EXPOSE 8000
+
+# Start application
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
 ### Environment Variables
 
 ```bash
-# .env
+# .env.production
 ENVIRONMENT=production
-DEVTRACK_MAX_ENTRIES=1000
-DEVTRACK_EXCLUDE_PATHS=/health,/metrics
+DEVTRACK_DB_PATH=/var/lib/devtrack/logs.db
+DEVTRACK_EXCLUDE_PATHS=/health,/metrics,/admin
+DEVTRACK_MAX_ENTRIES=10000
+LOG_LEVEL=INFO
 ```
+
+---
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Middleware not tracking requests**
-   - Check that middleware is added before other middleware
-   - Verify paths are not in exclude list
+1. **Database not initialized**
+   ```bash
+   devtrack init --force
+   ```
 
 2. **Import errors**
-   - Ensure all dependencies are installed: `pip install fastapi httpx starlette`
-   - Check Python version compatibility
+   ```bash
+   pip install devtrack-sdk
+   ```
 
-3. **Performance issues**
-   - Consider limiting stored entries
-   - Exclude high-traffic paths
+3. **Permission errors**
+   ```bash
+   chmod +x /path/to/devtrack_logs.db
+   ```
 
 ### Debug Mode
 
-Enable debug logging:
-
 ```python
 import logging
-
 logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger('devtrack_sdk')
 ```
 
-## Best Practices
+---
 
-1. **Environment Configuration**: Use different exclude paths for different environments
-2. **Security**: Always filter sensitive data and consider access control
-3. **Performance**: Monitor memory usage and limit stored entries
-4. **Testing**: Include DevTrack in your test suite
-5. **Documentation**: Document your custom configurations
+## Examples
 
-## Migration from Django
+### Basic FastAPI App
 
-If you're migrating from Django to FastAPI:
+```python
+from fastapi import FastAPI
+from devtrack_sdk.middleware import DevTrackMiddleware
+from devtrack_sdk.controller import router as devtrack_router
 
-1. Replace `DevTrackDjangoMiddleware` with `DevTrackMiddleware`
-2. Update middleware configuration in FastAPI app
-3. Include FastAPI router instead of Django URL patterns
-4. Update any custom data extraction logic
+app = FastAPI(title="My API")
 
-The API endpoints and data format remain the same, ensuring a smooth transition.
+# Include DevTrack router
+app.include_router(devtrack_router)
 
-## CLI Tool Integration
+# Add DevTrack middleware
+app.add_middleware(DevTrackMiddleware)
 
-DevTrack SDK includes a CLI tool for managing your project:
+@app.get("/")
+async def root():
+    return {"message": "Hello World"}
 
-```bash
-# Display version
-devtrack --version
+@app.get("/api/users")
+async def get_users():
+    return {"users": ["user1", "user2"]}
 
-# Get stats from local endpoint
-devtrack stat
-
-# Get stats from remote endpoint
-devtrack stat --url http://api.example.com/__devtrack__/stats
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
 ```
 
-The CLI tool works with both FastAPI and Django integrations! 
+### Advanced Configuration
+
+```python
+from fastapi import FastAPI
+from devtrack_sdk.middleware import DevTrackMiddleware
+from devtrack_sdk.controller import router as devtrack_router
+import os
+
+app = FastAPI(title="My API", version="1.0.0")
+
+# Environment-specific configuration
+env = os.getenv('ENVIRONMENT', 'development')
+exclude_paths = {
+    'development': ['/docs', '/redoc', '/health'],
+    'production': ['/health', '/metrics'],
+    'staging': ['/health', '/admin']
+}
+
+# Include DevTrack router
+app.include_router(devtrack_router)
+
+# Add DevTrack middleware with environment-specific exclusions
+app.add_middleware(
+    DevTrackMiddleware,
+    exclude_path=exclude_paths.get(env, [])
+)
+
+# Your API endpoints
+@app.get("/")
+async def root():
+    return {"message": "Hello World"}
+
+@app.get("/api/users")
+async def get_users():
+    return {"users": ["user1", "user2"]}
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
+```
+
+---
+
+## Resources
+
+- **GitHub Repository**: [https://github.com/mahesh-solanke/devtrack-sdk](https://github.com/mahesh-solanke/devtrack-sdk)
+- **Documentation**: [https://devtrack-sdk.readthedocs.io](https://devtrack-sdk.readthedocs.io)
+- **Issues**: [https://github.com/mahesh-solanke/devtrack-sdk/issues](https://github.com/mahesh-solanke/devtrack-sdk/issues)
+- **Discussions**: [https://github.com/mahesh-solanke/devtrack-sdk/discussions](https://github.com/mahesh-solanke/devtrack-sdk/discussions)
