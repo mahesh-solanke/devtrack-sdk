@@ -285,7 +285,7 @@ class CustomDevTrackMiddleware(DevTrackDjangoMiddleware):
             "/media/",
         ]
         super().__init__(get_response, exclude_path=exclude_paths)
-    
+
     def _extract_devtrack_log_data(self, request, response, start_time):
         # Get base data
         log_data = super()._extract_devtrack_log_data(request, response, start_time)
@@ -415,74 +415,26 @@ devtrack query --help
 - **SQL Support**: Full SQL query capabilities
 - **Cross-Platform**: Works on Windows, macOS, and Linux
 
-### Database Schema
-```sql
-CREATE TABLE request_logs (
-    id INTEGER PRIMARY KEY DEFAULT NEXTVAL('seq_log_id'),
-    path VARCHAR,
-    path_pattern VARCHAR,
-    method VARCHAR,
-    status_code INTEGER,
-    timestamp TIMESTAMP,
-    client_ip VARCHAR,
-    duration_ms DOUBLE,
-    user_agent VARCHAR,
-    referer VARCHAR,
-    query_params VARCHAR,  -- JSON string
-    path_params VARCHAR,   -- JSON string
-    request_body VARCHAR,  -- JSON string
-    response_size INTEGER,
-    user_id VARCHAR,
-    role VARCHAR,
-    trace_id VARCHAR,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-```
+### Automatic Database Setup
+DevTrack SDK automatically creates and manages the DuckDB database. No manual setup required - just install and configure the middleware.
 
-### Database Operations
-```python
-from devtrack_sdk.database import DevTrackDB, get_db, init_db
+**Stored Data Includes:**
+- **Request Details**: Path, method, status code, timestamp
+- **Performance Metrics**: Duration, response size, latency
+- **Client Information**: IP address, user agent, referer
+- **User Context**: User ID, role, authentication data
+- **Request Data**: Query parameters, path parameters, request body
+- **Trace Information**: Unique request identification
 
-# Initialize database
-db = init_db("custom_path.db")
+### Database Management
+DevTrack SDK provides comprehensive database management through:
 
-# Insert log
-log_data = {
-    "path": "/api/users",
-    "method": "GET",
-    "status_code": 200,
-    "timestamp": "2024-01-01T00:00:00Z",
-    "client_ip": "127.0.0.1",
-    "duration_ms": 150.5,
-    "user_agent": "Mozilla/5.0...",
-    "referer": "http://localhost:8000/",
-    "query_params": {"page": "1"},
-    "path_params": {"id": "123"},
-    "request_body": {"name": "John"},
-    "response_size": 1024,
-    "user_id": "1",
-    "role": "admin",
-    "trace_id": "uuid-here"
-}
-log_id = db.insert_log(log_data)
+- **CLI Commands**: `devtrack init`, `devtrack reset`, `devtrack export`
+- **API Endpoints**: `/__devtrack__/stats`, `/__devtrack__/logs`
+- **Django Management**: `python manage.py devtrack_init`, `devtrack_stats`
+- **Python API**: Direct database operations for advanced use cases
 
-# Query logs
-logs = db.get_all_logs(limit=100)
-logs_by_path = db.get_logs_by_path("/api/users", limit=50)
-logs_by_status = db.get_logs_by_status_code(404, limit=20)
-
-# Get statistics
-stats = db.get_stats_summary()
-print(f"Total requests: {stats['total_requests']}")
-print(f"Unique endpoints: {stats['unique_endpoints']}")
-print(f"Average duration: {stats['avg_duration_ms']:.2f} ms")
-
-# Delete logs
-deleted_count = db.delete_all_logs()
-deleted_by_path = db.delete_logs_by_path("/api/users")
-deleted_by_status = db.delete_logs_by_status_code(404)
-deleted_old = db.delete_logs_older_than(days=30)
-```
+For detailed database operations and advanced usage, see our [documentation](https://devtrack-sdk.readthedocs.io/).
 
 ---
 
@@ -634,110 +586,19 @@ class ConfigurableDevTrackMiddleware(DevTrackMiddleware):
 ## 🔍 Advanced Usage
 
 ### Custom Data Extraction
-```python
-from devtrack_sdk.middleware.extractor import extract_devtrack_log_data
-from datetime import datetime, timezone
-import uuid
+DevTrack SDK allows custom data extraction by extending the base extractor. You can add custom fields like request IDs, app versions, and environment information to your logs.
 
-async def custom_extract_log_data(request, response, start_time):
-    # Get base data
-    log_data = await extract_devtrack_log_data(request, response, start_time)
-    
-    # Add custom fields
-    log_data.update({
-        "custom_field": "custom_value",
-        "request_id": str(uuid.uuid4()),
-        "app_version": "1.0.0",
-        "environment": "production",
-    })
-    
-    return log_data
-```
+For detailed implementation examples, see our [documentation](https://devtrack-sdk.readthedocs.io/).
 
 ### Custom Database Operations
-```python
-from devtrack_sdk.database import DevTrackDB
-import json
+DevTrack SDK provides a flexible database interface that can be extended for custom operations like date range queries, performance metrics, and advanced analytics.
 
-class CustomDevTrackDB(DevTrackDB):
-    def get_logs_by_date_range(self, start_date, end_date):
-        """Get logs within a date range."""
-        sql = """
-        SELECT * FROM request_logs 
-        WHERE timestamp BETWEEN ? AND ? 
-        ORDER BY created_at DESC
-        """
-        result = self.conn.execute(sql, (start_date, end_date)).fetchall()
-        columns = [desc[0] for desc in self.conn.description]
-        
-        logs = []
-        for row in result:
-            log_dict = dict(zip(columns, row))
-            # Convert JSON strings back to dicts
-            log_dict['query_params'] = json.loads(log_dict['query_params'])
-            log_dict['path_params'] = json.loads(log_dict['path_params'])
-            log_dict['request_body'] = json.loads(log_dict['request_body'])
-            # Convert timestamp back to ISO format
-            log_dict['timestamp'] = log_dict['timestamp'].isoformat()
-            logs.append(log_dict)
-        
-        return logs
-    
-    def get_performance_metrics(self):
-        """Get detailed performance metrics."""
-        sql = """
-        SELECT 
-            path_pattern,
-            method,
-            COUNT(*) as request_count,
-            AVG(duration_ms) as avg_duration,
-            MIN(duration_ms) as min_duration,
-            MAX(duration_ms) as max_duration,
-            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY duration_ms) as p50,
-            PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms) as p95,
-            PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY duration_ms) as p99
-        FROM request_logs
-        GROUP BY path_pattern, method
-        ORDER BY avg_duration DESC
-        """
-        result = self.conn.execute(sql).fetchall()
-        columns = [desc[0] for desc in self.conn.description]
-        
-        return [dict(zip(columns, row)) for row in result]
-```
+For detailed implementation examples, see our [documentation](https://devtrack-sdk.readthedocs.io/).
 
 ### Integration with Monitoring Tools
-```python
-# Prometheus integration
-from prometheus_client import Counter, Histogram, Gauge
-import time
+DevTrack SDK integrates seamlessly with popular monitoring tools like Prometheus, Grafana, and Datadog. You can extend the middleware to export metrics and integrate with your existing monitoring infrastructure.
 
-# Metrics
-request_count = Counter('devtrack_requests_total', 'Total requests', ['method', 'path', 'status'])
-request_duration = Histogram('devtrack_request_duration_seconds', 'Request duration')
-active_requests = Gauge('devtrack_active_requests', 'Active requests')
-
-class PrometheusDevTrackMiddleware(DevTrackMiddleware):
-    async def dispatch(self, request, call_next):
-        start_time = time.time()
-        active_requests.inc()
-        
-        try:
-            response = await super().dispatch(request, call_next)
-            
-            # Record metrics
-            request_count.labels(
-                method=request.method,
-                path=request.url.path,
-                status=response.status_code
-            ).inc()
-            
-            request_duration.observe(time.time() - start_time)
-            
-            return response
-        finally:
-            active_requests.dec()
-```
+For detailed integration examples, see our [documentation](https://devtrack-sdk.readthedocs.io/).
 
 ---
 
@@ -750,60 +611,14 @@ class PrometheusDevTrackMiddleware(DevTrackMiddleware):
 - **Environment Awareness**: Different configurations for different environments
 
 ### Sensitive Data Filtering
-```python
-# Automatically filtered fields
-SENSITIVE_FIELDS = ['password', 'token', 'secret', 'key', 'api_key']
+DevTrack SDK automatically filters sensitive fields like passwords, tokens, and API keys. You can extend the filtering to include additional sensitive fields specific to your application.
 
-# Custom filtering
-class SecureDevTrackMiddleware(DevTrackMiddleware):
-    async def dispatch(self, request, call_next):
-        response = await super().dispatch(request, call_next)
-        
-        # Additional filtering
-        if hasattr(response, 'log_data') and 'request_body' in response.log_data:
-            body = response.log_data['request_body']
-            for field in ['ssn', 'credit_card', 'api_key']:
-                if field in body:
-                    body[field] = '***FILTERED***'
-        
-        return response
-```
+For detailed security configuration examples, see our [documentation](https://devtrack-sdk.readthedocs.io/).
 
 ### Access Control
-```python
-# FastAPI - Protect DevTrack endpoints
-from fastapi import Depends, HTTPException
-from fastapi.security import HTTPBearer
+DevTrack SDK endpoints can be protected with authentication and authorization. You can require login, admin access, or custom permissions for accessing statistics and log data.
 
-security = HTTPBearer()
-
-async def verify_admin_token(credentials = Depends(security)):
-    if not is_admin_token(credentials.credentials):
-        raise HTTPException(status_code=403, detail="Admin access required")
-
-# Protect DevTrack endpoints
-app.include_router(
-    devtrack_router,
-    dependencies=[Depends(verify_admin_token)]
-)
-```
-
-```python
-# Django - Protect DevTrack endpoints
-from django.contrib.auth.decorators import login_required
-from django.contrib.admin.views.decorators import staff_member_required
-from devtrack_sdk.django_views import stats_view
-
-# Require login for stats
-@login_required
-def secure_stats_view(request):
-    return stats_view(request)
-
-# Require staff access
-@staff_member_required
-def admin_stats_view(request):
-    return stats_view(request)
-```
+For detailed access control examples, see our [documentation](https://devtrack-sdk.readthedocs.io/).
 
 ### Production Security Recommendations
 1. **Environment Variables**: Use environment variables for sensitive configuration
@@ -845,103 +660,14 @@ tests/
 ```
 
 ### Writing Tests
-```python
-import pytest
-from fastapi.testclient import TestClient
-from devtrack_sdk.middleware import DevTrackMiddleware
+DevTrack SDK provides comprehensive testing support for both FastAPI and Django applications. You can test middleware functionality, database operations, and API endpoints using standard testing frameworks.
 
-def test_middleware_tracking():
-    from fastapi import FastAPI
-    
-    app = FastAPI()
-    app.add_middleware(DevTrackMiddleware)
-    
-    client = TestClient(app)
-    
-    # Make a request
-    response = client.get("/test")
-    
-    # Check that stats were recorded
-    stats_response = client.get("/__devtrack__/stats")
-    stats = stats_response.json()
-    
-    assert stats["total"] > 0
-    assert len(stats["entries"]) > 0
-
-def test_database_operations():
-    from devtrack_sdk.database import DevTrackDB
-    import tempfile
-    import os
-    
-    # Create temporary database
-    with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as tmp:
-        db_path = tmp.name
-    
-    try:
-        db = DevTrackDB(db_path)
-        
-        # Test log insertion
-        log_data = {
-            "path": "/test",
-            "method": "GET",
-            "status_code": 200,
-            "timestamp": "2024-01-01T00:00:00Z",
-            "client_ip": "127.0.0.1",
-            "duration_ms": 100.0,
-            "user_agent": "test",
-            "referer": "",
-            "query_params": {},
-            "path_params": {},
-            "request_body": {},
-            "response_size": 0,
-            "user_id": "",
-            "role": "",
-            "trace_id": "test-trace"
-        }
-        
-        log_id = db.insert_log(log_data)
-        assert log_id is not None
-        
-        # Test log retrieval
-        logs = db.get_all_logs(limit=1)
-        assert len(logs) == 1
-        assert logs[0]["path"] == "/test"
-        
-        # Test statistics
-        stats = db.get_stats_summary()
-        assert stats["total_requests"] == 1
-        
-    finally:
-        # Cleanup
-        if os.path.exists(db_path):
-            os.unlink(db_path)
-```
+For detailed testing examples, see our [documentation](https://devtrack-sdk.readthedocs.io/).
 
 ### Integration Tests
-```python
-import pytest
-from django.test import TestCase, RequestFactory
-from devtrack_sdk.django_middleware import DevTrackDjangoMiddleware
+DevTrack SDK supports integration testing for both FastAPI and Django applications. You can test middleware behavior, request tracking, and endpoint exclusions using standard testing frameworks.
 
-class DevTrackTestCase(TestCase):
-    def setUp(self):
-        self.factory = RequestFactory()
-        self.middleware = DevTrackDjangoMiddleware()
-    
-    def test_request_tracking(self):
-        request = self.factory.get('/api/test/')
-        response = self.middleware(request)
-        
-        # Check that stats were recorded
-        self.assertTrue(len(DevTrackDjangoMiddleware.stats) > 0)
-    
-    def test_path_exclusion(self):
-        request = self.factory.get('/__devtrack__/stats')
-        response = self.middleware(request)
-        
-        # Check that DevTrack endpoints are excluded
-        self.assertEqual(len(DevTrackDjangoMiddleware.stats), 0)
-```
+For detailed integration testing examples, see our [documentation](https://devtrack-sdk.readthedocs.io/).
 
 ---
 
@@ -954,28 +680,9 @@ class DevTrackTestCase(TestCase):
 - **Memory Efficient**: Configurable limits prevent memory issues
 
 ### Performance Monitoring
-```python
-import time
-from devtrack_sdk.middleware import DevTrackMiddleware
+DevTrack SDK includes built-in performance monitoring capabilities. You can track request duration, identify slow endpoints, and monitor application performance in real-time.
 
-class PerformanceMonitoringMiddleware(DevTrackMiddleware):
-    async def dispatch(self, request, call_next):
-        start_time = time.time()
-        
-        try:
-            response = await super().dispatch(request, call_next)
-            
-            # Log performance metrics
-            duration = time.time() - start_time
-            if duration > 1.0:  # Log slow requests
-                print(f"Slow request: {request.url.path} took {duration:.2f}s")
-            
-            return response
-        except Exception as e:
-            duration = time.time() - start_time
-            print(f"Request failed: {request.url.path} after {duration:.2f}s: {e}")
-            raise
-```
+For detailed performance monitoring examples, see our [documentation](https://devtrack-sdk.readthedocs.io/).
 
 ### Optimization Tips
 1. **Exclude High-Traffic Paths**: Exclude health checks and metrics endpoints
@@ -985,22 +692,9 @@ class PerformanceMonitoringMiddleware(DevTrackMiddleware):
 5. **Monitor Performance**: Use the built-in performance monitoring
 
 ### Memory Management
-```python
-from collections import deque
-from devtrack_sdk.middleware import DevTrackMiddleware
+DevTrack SDK provides configurable memory management options. You can set limits on stored entries, implement custom cleanup strategies, and optimize memory usage for your specific requirements.
 
-class LimitedDevTrackMiddleware(DevTrackMiddleware):
-    MAX_ENTRIES = 1000
-    
-    async def dispatch(self, request, call_next):
-        response = await super().dispatch(request, call_next)
-        
-        # Limit stored entries
-        if len(DevTrackMiddleware.stats) >= self.MAX_ENTRIES:
-            DevTrackMiddleware.stats.pop(0)  # Remove oldest entry
-        
-        return response
-```
+For detailed memory management examples, see our [documentation](https://devtrack-sdk.readthedocs.io/).
 
 ---
 
@@ -1123,33 +817,9 @@ LOG_LEVEL=INFO
 ```
 
 ### Health Checks
-```python
-# health_check.py
-from fastapi import FastAPI
-from devtrack_sdk.database import DevTrackDB
-import os
+DevTrack SDK provides built-in health check capabilities. You can monitor database connectivity, system status, and component health for production deployments.
 
-app = FastAPI()
-
-@app.get("/health")
-async def health_check():
-    try:
-        # Check database connectivity
-        db_path = os.getenv('DEVTRACK_DB_PATH', 'devtrack_logs.db')
-        db = DevTrackDB(db_path)
-        stats = db.get_stats_summary()
-        
-        return {
-            "status": "healthy",
-            "database": "connected",
-            "total_requests": stats.get('total_requests', 0)
-        }
-    except Exception as e:
-        return {
-            "status": "unhealthy",
-            "error": str(e)
-        }
-```
+For detailed health check examples, see our [documentation](https://devtrack-sdk.readthedocs.io/).
 
 ---
 
