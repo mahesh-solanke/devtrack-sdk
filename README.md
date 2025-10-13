@@ -7,12 +7,15 @@
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](/LICENSE)
 [![PyPI Downloads](https://static.pepy.tech/badge/devtrack-sdk)](https://pepy.tech/projects/devtrack-sdk)
-[![GitHub Issues](https://img.shields.io/github/issues/mahesh-solanke/devtrack-sdk.svg)](https://github.com/mahesh-solanke/devtrack-sdk/issues)
-[![GitHub Pull Requests](https://img.shields.io/github/issues-pr/mahesh-solanke/devtrack-sdk.svg)](https://github.com/mahesh-solanke/devtrack-sdk/pulls)
+[![Documentation](https://img.shields.io/badge/docs-readthedocs-blue.svg)](https://devtrack-sdk.readthedocs.io/)
+[![GitHub Issues](https://img.shields.io/badge/GitHub-Issues-black.svg)](https://github.com/mahesh-solanke/devtrack-sdk/issues)
+[![GitHub Pull Requests](https://img.shields.io/badge/GitHub-PRs-black.svg)](https://github.com/mahesh-solanke/devtrack-sdk/pulls)
 
 **Comprehensive request tracking and analytics toolkit for FastAPI and Django applications**
 
 *Built for developers who care about API usage, performance, and observability*
+
+📖 **[View Documentation](https://devtrack-sdk.readthedocs.io/)** | 🚀 **[Quick Start](#-quick-start)** | 🛠️ **[CLI Toolkit](#️-cli-toolkit)**
 
 </div>
 
@@ -67,6 +70,8 @@
 ---
 
 ## 🚀 Quick Start
+
+> 📖 **Need more details?** Check out our comprehensive [documentation](https://devtrack-sdk.readthedocs.io/) for detailed guides, API reference, and advanced usage examples.
 
 ### 1. Install DevTrack SDK
 
