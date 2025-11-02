@@ -1,24 +1,29 @@
 import json
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
+from django.conf import settings
 from django.http import HttpRequest, HttpResponse
 from django.utils.deprecation import MiddlewareMixin
+
+from .database import DevTrackDB
 
 
 class DevTrackDjangoMiddleware(MiddlewareMixin):
     """
-    Django middleware for request tracking - equivalent to FastAPI DevTrackMiddleware
+    Django middleware for request tracking with DuckDB integration
     """
 
-    stats = []
+    _db_instance: Optional[DevTrackDB] = None
 
-    def __init__(self, get_response=None, exclude_path: list[str] = None):
+    def __init__(
+        self, get_response=None, exclude_path: list[str] = None, db_path: str = None
+    ):
         self.get_response = get_response
         self.skip_paths = [
             "/__devtrack__/stats",
-            "/__devtrack__/track",
+            "/__devtrack__/logs",
             "/admin/",
             "/static/",
             "/media/",
@@ -28,6 +33,14 @@ class DevTrackDjangoMiddleware(MiddlewareMixin):
         ]
         if exclude_path:
             self.skip_paths.extend(exclude_path)
+
+        # Initialize database if not already done
+        if DevTrackDjangoMiddleware._db_instance is None:
+            db_path = db_path or getattr(
+                settings, "DEVTRACK_DB_PATH", "devtrack_logs.db"
+            )
+            DevTrackDjangoMiddleware._db_instance = DevTrackDB(db_path)
+
         super().__init__(get_response)
 
     def __call__(self, request: HttpRequest) -> HttpResponse:
@@ -41,7 +54,8 @@ class DevTrackDjangoMiddleware(MiddlewareMixin):
 
         try:
             log_data = self._extract_devtrack_log_data(request, response, start_time)
-            DevTrackDjangoMiddleware.stats.append(log_data)
+            # Store in DuckDB instead of in-memory list
+            DevTrackDjangoMiddleware._db_instance.insert_log(log_data)
         except Exception as e:
             print(f"[DevTrackDjangoMiddleware] Logging error: {e}")
 

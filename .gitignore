@@ -99,3 +99,14 @@ dmypy.json
 
 # Cython debug symbols
 cython_debug/
+
+
+# Test databases
+*.db
+*.wal
+
+# Sphinx documentation
+docs/_build/
+docs/_static/*
+!docs/_static/.gitkeep
+docs/_templates/

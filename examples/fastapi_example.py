@@ -1,6 +1,6 @@
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from devtrack_sdk.controller.devtrack_routes import router as devtrack_router
@@ -39,3 +39,8 @@ async def slow(seconds: int | float, value: str, data: Data):
 
     time.sleep(seconds)
     return {"message": "This was a slow request!"}
+
+
+@app.get("/error")
+async def error():
+    raise HTTPException(status_code=400, detail="This is an error")

@@ -103,8 +103,9 @@ class DevTrackDjangoViewsTest(TestCase):
 
     def setUp(self):
         self.factory = RequestFactory()
-        # Clear stats before each test to avoid MagicMock serialization issues
-        DevTrackDjangoMiddleware.stats.clear()
+        # Clear database before each test to avoid test data interference
+        if DevTrackDjangoMiddleware._db_instance is not None:
+            DevTrackDjangoMiddleware._db_instance.delete_all_logs()
 
     def test_stats_view(self):
         """Test stats view returns correct format"""
@@ -118,7 +119,24 @@ class DevTrackDjangoViewsTest(TestCase):
 
     def test_track_view(self):
         """Test track view accepts data"""
-        test_data = {"test": "data"}
+        test_data = {
+            "path": "/api/test",
+            "path_pattern": "/api/test",
+            "method": "POST",
+            "status_code": 200,
+            "timestamp": "2024-01-01T00:00:00Z",
+            "duration_ms": 100.0,
+            "client_ip": "127.0.0.1",
+            "user_agent": "test-agent",
+            "referer": "",
+            "query_params": {},
+            "path_params": {},
+            "request_body": {},
+            "response_size": 0,
+            "user_id": None,
+            "role": None,
+            "trace_id": "test-trace-id",
+        }
         request = self.factory.post(
             "/__devtrack__/track",
             data=json.dumps(test_data),
@@ -134,7 +152,23 @@ class DevTrackDjangoViewsTest(TestCase):
         stats_request = self.factory.get("/__devtrack__/stats")
         stats_response = stats_view(stats_request)
         stats_data = json.loads(stats_response.content)
-        self.assertIn(test_data, stats_data["entries"])
+        entries = stats_data["entries"]
+        self.assertGreater(len(entries), 0, "No entries found in stats")
+        # Verify the test data fields are present in at least one entry
+        # Database adds id and created_at, so we check core fields
+        found = False
+        for entry in entries:
+            # Check key fields that should match
+            if (
+                entry.get("path") == test_data["path"]
+                and entry.get("path_pattern") == test_data["path_pattern"]
+                and entry.get("method") == test_data["method"]
+                and entry.get("status_code") == test_data["status_code"]
+                and abs(entry.get("duration_ms", 0) - test_data["duration_ms"]) < 0.01
+            ):
+                found = True
+                break
+        self.assertTrue(found, "Test data not found in stats entries")
 
     def test_track_view_invalid_json(self):
         """Test track view handles invalid JSON"""
@@ -143,9 +177,11 @@ class DevTrackDjangoViewsTest(TestCase):
         )
 
         response = track_view(request)
-        self.assertEqual(response.status_code, 200)
+        # Invalid JSON should result in an error response
+        self.assertEqual(response.status_code, 500)
         data = json.loads(response.content)
-        self.assertEqual(data["ok"], True)
+        self.assertEqual(data["ok"], False)
+        self.assertIn("error", data)
 
 
 class DevTrackDjangoURLsTest(TestCase):

@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 
 setup(
     name="devtrack-sdk",
-    version="0.2.6",
+    version="0.3.0",
     description=(
         "Middleware-based API analytics and observability tool for FastAPI and Django"
     ),
