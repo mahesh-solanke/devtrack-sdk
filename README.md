@@ -47,7 +47,7 @@
 ### ✨ Core Features
 - **Zero Configuration**: Works out of the box with sensible defaults
 - **Dual Framework Support**: FastAPI and Django middleware
-- **Real-time Monitoring**: Live dashboard with customizable refresh intervals
+- **[TODO] Real-time Monitoring**: Live dashboard with customizable refresh intervals
 - **Advanced Querying**: Filter and search logs with multiple criteria
 - **Export Capabilities**: Export logs to JSON or CSV formats
 - **Health Monitoring**: System health checks and component status
@@ -68,10 +68,6 @@
 - **Trace IDs**: Unique request identification
 
 ---
-
-## 🚀 Quick Start
-
-> 📖 **Need more details?** Check out our comprehensive [documentation](https://devtrack-sdk.readthedocs.io/) for detailed guides, API reference, and advanced usage examples.
 
 ### 1. Install DevTrack SDK
 

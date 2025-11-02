@@ -117,17 +117,21 @@ def test_stat_command_success():
         ]
     }
 
-    with patch("requests.get") as mock_get:
-        mock_response = MagicMock(
-            status_code=200, json=MagicMock(return_value=mock_stats)
-        )
-        mock_get.return_value = mock_response
+    with patch(
+        "devtrack_sdk.cli.detect_devtrack_endpoint",
+        return_value="http://localhost:8000/__devtrack__/stats",
+    ):
+        with patch("requests.get") as mock_get:
+            mock_response = MagicMock(
+                status_code=200, json=MagicMock(return_value=mock_stats)
+            )
+            mock_get.return_value = mock_response
 
-        result = runner.invoke(app, ["stat"])
-        assert result.exit_code == 0, "Stat command failed"
-        assert "📊 DevTrack Stats CLI" in result.output, "Stat CLI header missing"
-        assert "/api/test" in result.output, "API path missing in output"
-        assert "GET" in result.output, "HTTP method missing in output"
+            result = runner.invoke(app, ["stat", "--endpoint"], input="n\n")
+            assert result.exit_code == 0, "Stat command failed"
+            assert "📊 DevTrack Stats CLI" in result.output, "Stat CLI header missing"
+            assert "/api/test" in result.output, "API path missing in output"
+            assert "GET" in result.output, "HTTP method missing in output"
 
 
 def test_stat_command_with_top_option():
@@ -154,18 +158,24 @@ def test_stat_command_with_top_option():
         ]
     }
 
-    with patch("requests.get") as mock_get:
-        mock_response = MagicMock(
-            status_code=200, json=MagicMock(return_value=mock_stats)
-        )
-        mock_get.return_value = mock_response
+    with patch(
+        "devtrack_sdk.cli.detect_devtrack_endpoint",
+        return_value="http://localhost:8000/__devtrack__/stats",
+    ):
+        with patch("requests.get") as mock_get:
+            mock_response = MagicMock(
+                status_code=200, json=MagicMock(return_value=mock_stats)
+            )
+            mock_get.return_value = mock_response
 
-        result = runner.invoke(app, ["stat", "--top", "2"])
-        assert result.exit_code == 0, "Stat command with top option failed"
-        assert result.output.count("Path") == 1, "Header appears more than once"
-        assert result.output.count("GET") == 1, "GET method count mismatch"
-        assert result.output.count("POST") == 1, "POST method count mismatch"
-        assert result.output.count("PUT") == 0, "PUT method should not appear"
+            result = runner.invoke(
+                app, ["stat", "--top", "2", "--endpoint"], input="n\n"
+            )
+            assert result.exit_code == 0, "Stat command with top option failed"
+            assert result.output.count("Path") == 1, "Header appears more than once"
+            assert result.output.count("GET") == 1, "GET method count mismatch"
+            assert result.output.count("POST") == 1, "POST method count mismatch"
+            assert result.output.count("PUT") == 0, "PUT method should not appear"
 
 
 def test_stat_command_with_sort_by_latency():
@@ -186,17 +196,23 @@ def test_stat_command_with_sort_by_latency():
         ]
     }
 
-    with patch("requests.get") as mock_get:
-        mock_response = MagicMock(
-            status_code=200, json=MagicMock(return_value=mock_stats)
-        )
-        mock_get.return_value = mock_response
+    with patch(
+        "devtrack_sdk.cli.detect_devtrack_endpoint",
+        return_value="http://localhost:8000/__devtrack__/stats",
+    ):
+        with patch("requests.get") as mock_get:
+            mock_response = MagicMock(
+                status_code=200, json=MagicMock(return_value=mock_stats)
+            )
+            mock_get.return_value = mock_response
 
-        result = runner.invoke(app, ["stat", "--sort-by", "latency"])
-        assert result.exit_code == 0, "Stat command with sort by latency failed"
-        assert result.output.find("/api/slow") < result.output.find(
-            "/api/fast"
-        ), "Latency sort order incorrect"
+            result = runner.invoke(
+                app, ["stat", "--sort-by", "latency", "--endpoint"], input="n\n"
+            )
+            assert result.exit_code == 0, "Stat command with sort by latency failed"
+            assert result.output.find("/api/slow") < result.output.find(
+                "/api/fast"
+            ), "Latency sort order incorrect"
 
 
 def test_stat_command_error_handling():
@@ -207,7 +223,7 @@ def test_stat_command_error_handling():
         with patch(
             "requests.get", side_effect=requests.RequestException("Connection failed")
         ):
-            result = runner.invoke(app, ["stat"])
+            result = runner.invoke(app, ["stat", "--endpoint"])
             assert result.exit_code == 1, "Error handling failed"
             assert "Failed to fetch stats" in result.output, "Error message mismatch"
 
@@ -215,14 +231,18 @@ def test_stat_command_error_handling():
 def test_stat_command_empty_stats():
     mock_stats = {"entries": []}
 
-    with patch("requests.get") as mock_get:
-        mock_response = MagicMock(
-            status_code=200, json=MagicMock(return_value=mock_stats)
-        )
-        mock_get.return_value = mock_response
+    with patch(
+        "devtrack_sdk.cli.detect_devtrack_endpoint",
+        return_value="http://localhost:8000/__devtrack__/stats",
+    ):
+        with patch("requests.get") as mock_get:
+            mock_response = MagicMock(
+                status_code=200, json=MagicMock(return_value=mock_stats)
+            )
+            mock_get.return_value = mock_response
 
-        result = runner.invoke(app, ["stat"])
-        assert result.exit_code == 0, "Empty stats command failed"
-        assert (
-            "No request stats found yet" in result.output
-        ), "Empty stats message mismatch"
+            result = runner.invoke(app, ["stat", "--endpoint"])
+            assert result.exit_code == 0, "Empty stats command failed"
+            assert (
+                "No request stats found yet" in result.output
+            ), "Empty stats message mismatch"
