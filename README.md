@@ -1,5 +1,5 @@
-# 🚀 DevTrack SDK v0.3.0
-
+<div align="center"> 🚀 DevTrack SDK </div>
+<br><br>
 <div align="center">
 
 [![Status](https://img.shields.io/badge/status-active-success.svg)]()
