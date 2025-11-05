@@ -1,4 +1,5 @@
-# DevTrack SDK v0.3.0
+<div align="center"> 🚀 DevTrack SDK</div>
+<br>
 
 <div align="center">
 

@@ -7,7 +7,7 @@
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](/LICENSE)
 [![PyPI Downloads](https://static.pepy.tech/badge/devtrack-sdk)](https://pepy.tech/projects/devtrack-sdk)
-[![Documentation](https://img.shields.io/badge/docs-readthedocs-blue.svg)](https://devtrack-sdk.readthedocs.io/)
+[![Documentation](https://img.shields.io/badge/docs-github-blue.svg)](https://github.com/mahesh-solanke/devtrack-sdk/tree/main/docs)
 [![GitHub Issues](https://img.shields.io/badge/GitHub-Issues-black.svg)](https://github.com/mahesh-solanke/devtrack-sdk/issues)
 [![GitHub Pull Requests](https://img.shields.io/badge/GitHub-PRs-black.svg)](https://github.com/mahesh-solanke/devtrack-sdk/pulls)
 
@@ -15,7 +15,7 @@
 
 *Built for developers who care about API usage, performance, and observability*
 
-📖 **[View Documentation](https://devtrack-sdk.readthedocs.io/)** | 🚀 **[Quick Start](#-quick-start)** | 🛠️ **[CLI Toolkit](#️-cli-toolkit)**
+📖 **[View Documentation](https://github.com/mahesh-solanke/devtrack-sdk/tree/main/docs)** | 🚀 **[Quick Start](#-quick-start)** | 🛠️ **[CLI Toolkit](#️-cli-toolkit)**
 
 </div>
 
@@ -430,7 +430,7 @@ DevTrack SDK provides comprehensive database management through:
 - **Django Management**: `python manage.py devtrack_init`, `devtrack_stats`
 - **Python API**: Direct database operations for advanced use cases
 
-For detailed database operations and advanced usage, see our [documentation](https://devtrack-sdk.readthedocs.io/).
+For detailed database operations and advanced usage, see our [documentation](https://github.com/mahesh-solanke/devtrack-sdk/tree/main/docs).
 
 ---
 
@@ -584,17 +584,17 @@ class ConfigurableDevTrackMiddleware(DevTrackMiddleware):
 ### Custom Data Extraction
 DevTrack SDK allows custom data extraction by extending the base extractor. You can add custom fields like request IDs, app versions, and environment information to your logs.
 
-For detailed implementation examples, see our [documentation](https://devtrack-sdk.readthedocs.io/).
+For detailed implementation examples, see our [documentation](https://github.com/mahesh-solanke/devtrack-sdk/tree/main/docs).
 
 ### Custom Database Operations
 DevTrack SDK provides a flexible database interface that can be extended for custom operations like date range queries, performance metrics, and advanced analytics.
 
-For detailed implementation examples, see our [documentation](https://devtrack-sdk.readthedocs.io/).
+For detailed implementation examples, see our [documentation](https://github.com/mahesh-solanke/devtrack-sdk/tree/main/docs).
 
 ### Integration with Monitoring Tools
 DevTrack SDK integrates seamlessly with popular monitoring tools like Prometheus, Grafana, and Datadog. You can extend the middleware to export metrics and integrate with your existing monitoring infrastructure.
 
-For detailed integration examples, see our [documentation](https://devtrack-sdk.readthedocs.io/).
+For detailed integration examples, see our [documentation](https://github.com/mahesh-solanke/devtrack-sdk/tree/main/docs).
 
 ---
 
@@ -609,12 +609,12 @@ For detailed integration examples, see our [documentation](https://devtrack-sdk.
 ### Sensitive Data Filtering
 DevTrack SDK automatically filters sensitive fields like passwords, tokens, and API keys. You can extend the filtering to include additional sensitive fields specific to your application.
 
-For detailed security configuration examples, see our [documentation](https://devtrack-sdk.readthedocs.io/).
+For detailed security configuration examples, see our [documentation](https://github.com/mahesh-solanke/devtrack-sdk/tree/main/docs).
 
 ### Access Control
 DevTrack SDK endpoints can be protected with authentication and authorization. You can require login, admin access, or custom permissions for accessing statistics and log data.
 
-For detailed access control examples, see our [documentation](https://devtrack-sdk.readthedocs.io/).
+For detailed access control examples, see our [documentation](https://github.com/mahesh-solanke/devtrack-sdk/tree/main/docs).
 
 ### Production Security Recommendations
 1. **Environment Variables**: Use environment variables for sensitive configuration
@@ -658,12 +658,12 @@ tests/
 ### Writing Tests
 DevTrack SDK provides comprehensive testing support for both FastAPI and Django applications. You can test middleware functionality, database operations, and API endpoints using standard testing frameworks.
 
-For detailed testing examples, see our [documentation](https://devtrack-sdk.readthedocs.io/).
+For detailed testing examples, see our [documentation](https://github.com/mahesh-solanke/devtrack-sdk/tree/main/docs).
 
 ### Integration Tests
 DevTrack SDK supports integration testing for both FastAPI and Django applications. You can test middleware behavior, request tracking, and endpoint exclusions using standard testing frameworks.
 
-For detailed integration testing examples, see our [documentation](https://devtrack-sdk.readthedocs.io/).
+For detailed integration testing examples, see our [documentation](https://github.com/mahesh-solanke/devtrack-sdk/tree/main/docs).
 
 ---
 
@@ -678,7 +678,7 @@ For detailed integration testing examples, see our [documentation](https://devtr
 ### Performance Monitoring
 DevTrack SDK includes built-in performance monitoring capabilities. You can track request duration, identify slow endpoints, and monitor application performance in real-time.
 
-For detailed performance monitoring examples, see our [documentation](https://devtrack-sdk.readthedocs.io/).
+For detailed performance monitoring examples, see our [documentation](https://github.com/mahesh-solanke/devtrack-sdk/tree/main/docs).
 
 ### Optimization Tips
 1. **Exclude High-Traffic Paths**: Exclude health checks and metrics endpoints
@@ -690,7 +690,7 @@ For detailed performance monitoring examples, see our [documentation](https://de
 ### Memory Management
 DevTrack SDK provides configurable memory management options. You can set limits on stored entries, implement custom cleanup strategies, and optimize memory usage for your specific requirements.
 
-For detailed memory management examples, see our [documentation](https://devtrack-sdk.readthedocs.io/).
+For detailed memory management examples, see our [documentation](https://github.com/mahesh-solanke/devtrack-sdk/tree/main/docs).
 
 ---
 
@@ -815,15 +815,15 @@ LOG_LEVEL=INFO
 ### Health Checks
 DevTrack SDK provides built-in health check capabilities. You can monitor database connectivity, system status, and component health for production deployments.
 
-For detailed health check examples, see our [documentation](https://devtrack-sdk.readthedocs.io/).
+For detailed health check examples, see our [documentation](https://github.com/mahesh-solanke/devtrack-sdk/tree/main/docs).
 
 ---
 
 ## 📚 Documentation
 
 ### Online Documentation
-- **Read the Docs**: [https://devtrack-sdk.readthedocs.io](https://devtrack-sdk.readthedocs.io)
 - **GitHub Repository**: [https://github.com/mahesh-solanke/devtrack-sdk](https://github.com/mahesh-solanke/devtrack-sdk)
+- **Documentation Files**: [https://github.com/mahesh-solanke/devtrack-sdk/tree/main/docs](https://github.com/mahesh-solanke/devtrack-sdk/tree/main/docs)
 
 ### Local Documentation
 ```bash
@@ -928,6 +928,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - ❌ No warranty
 
 ---
+## 📅 Release Timeline
+
+- See the full roadmap and release plan in **[RoadMap](./docs/releases/ROADMAP.md)**
+---
 
 ## 🎉 Acknowledgements
 
@@ -944,7 +948,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - **GitHub Issues**: [https://github.com/mahesh-solanke/devtrack-sdk/issues](https://github.com/mahesh-solanke/devtrack-sdk/issues)
 - **GitHub Discussions**: [https://github.com/mahesh-solanke/devtrack-sdk/discussions](https://github.com/mahesh-solanke/devtrack-sdk/discussions)
-- **Email**: maheshsolanke69@gmail.com
+- **Email**: [Contact me](maheshsolanke69@gmail.com)
 
 ---
 
@@ -953,6 +957,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 **Made with ❤️ by [Mahesh Solanke](https://github.com/mahesh-solanke)**
 
 [![GitHub](https://img.shields.io/badge/GitHub-100000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/mahesh-solanke)
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://linkedin.com/in/mahesh-solanke)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://linkedin.com/in/mahesh-solanke-200697)
 
 </div>
