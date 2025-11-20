@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>DevTrack – API Live Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #0b1020;
+      --card-bg: #151a2b;
+      --accent: #4f46e5;
+      --accent-soft: rgba(79, 70, 229, 0.1);
+      --text: #f9fafb;
+      --muted: #9ca3af;
+      --danger: #f97373;
+      --success: #4ade80;
+      --border: #1f2937;
+      --font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background: radial-gradient(circle at top, #111827 0, #020617 60%);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .card {
+      background: linear-gradient(135deg, rgba(15,23,42,0.92), rgba(15,23,42,0.98));
+      border-radius: 18px;
+      border: 1px solid #1f2937;
+      padding: 20px 24px 22px 24px;
+      box-shadow: 0 18px 45px rgba(0,0,0,0.45);
+      backdrop-filter: blur(18px);
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .title {
+      font-size: 1.1rem;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .heading-row {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+
+    .heading-row h1 {
+      margin: 0;
+      font-size: 1.7rem;
+    }
+
+    .pill {
+      font-size: 0.75rem;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      border: 1px solid rgba(79,70,229,0.4);
+    }
+
+    .subtext {
+      margin: 0;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      justify-content: flex-end;
+    }
+
+    button {
+      border: 1px solid rgba(148,163,184,0.5);
+      background: rgba(15,23,42,0.9);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 6px 14px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+
+    button.primary {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #e5e7eb;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 25px rgba(0,0,0,0.35);
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: default;
+      transform: none;
+      box-shadow: none;
+    }
+
+    select {
+      background: rgba(15,23,42,0.9);
+      border-radius: 999px;
+      border: 1px solid rgba(148,163,184,0.7);
+      color: var(--text);
+      padding: 6px 26px 6px 10px;
+      font-size: 0.8rem;
+      outline: none;
+    }
+
+    .status-bar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 14px;
+      padding: 10px 12px;
+      background: radial-gradient(circle at left, rgba(79,70,229,0.15), transparent 60%);
+      border-radius: 14px;
+      border: 1px solid rgba(55,65,81,0.8);
+    }
+
+    .status-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--success);
+      box-shadow: 0 0 10px rgba(74,222,128,0.8);
+    }
+
+    .dot.off {
+      background: var(--danger);
+      box-shadow: 0 0 10px rgba(248,113,113,0.8);
+    }
+
+    .status-right {
+      font-size: 0.8rem;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .mono {
+      font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 0.78rem;
+    }
+
+    .endpoint {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 260px;
+    }
+
+    .error {
+      margin-top: 8px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: rgba(127,29,29,0.2);
+      border: 1px solid rgba(248,113,113,0.5);
+      color: #fecaca;
+      font-size: 0.8rem;
+    }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 6px;
+      margin-bottom: 12px;
+    }
+
+    .kpi-card {
+      border-radius: 14px;
+      padding: 10px 12px;
+      background: radial-gradient(circle at top left, rgba(56,189,248,0.12), transparent 70%);
+      border: 1px solid rgba(31,41,55,0.9);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-height: 68px;
+    }
+
+    .kpi-label {
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
+    .kpi-value {
+      font-size: 1.1rem;
+      font-weight: 500;
+    }
+
+    .kpi-sub {
+      font-size: 0.7rem;
+      color: var(--muted);
+    }
+
+    .kpi-accent {
+      color: var(--accent);
+    }
+
+    .kpi-danger {
+      color: var(--danger);
+    }
+
+    .chart-wrapper {
+      margin-top: 4px;
+      margin-bottom: 8px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: radial-gradient(circle at top left, rgba(15,118,110,0.08), transparent 60%);
+      padding: 10px 12px 12px 12px;
+    }
+
+    .chart-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+
+    .chart-header h2 {
+      margin: 0;
+      font-size: 0.95rem;
+      color: #e5e7eb;
+    }
+
+    .chart-sub {
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+
+    .chart-empty {
+      font-size: 0.8rem;
+      color: var(--muted);
+      text-align: center;
+      padding: 12px 0 8px 0;
+    }
+
+    .data-card {
+      margin-top: 6px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: radial-gradient(circle at top left, rgba(15,118,110,0.08), transparent 60%);
+      padding: 10px 10px 14px 10px;
+    }
+
+    .data-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .data-card-header h2 {
+      margin: 0;
+      font-size: 0.95rem;
+      color: #e5e7eb;
+    }
+
+    .badge {
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 0.72rem;
+      border: 1px solid rgba(148,163,184,0.8);
+      color: var(--muted);
+    }
+
+    .loader {
+      font-size: 0.85rem;
+      color: var(--muted);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .spinner {
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      border: 2px solid rgba(148,163,184,0.5);
+      border-top-color: var(--accent);
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 6px;
+      font-size: 0.8rem;
+    }
+
+    thead {
+      background: rgba(15,23,42,0.9);
+    }
+
+    th, td {
+      border-bottom: 1px solid rgba(31,41,55,0.9);
+      padding: 6px 6px;
+      text-align: left;
+    }
+
+    th {
+      font-weight: 500;
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+
+    tbody tr:hover {
+      background: rgba(31,41,55,0.8);
+    }
+
+    .empty-state {
+      padding: 14px 8px;
+      font-size: 0.82rem;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    pre.json-dump {
+      margin: 0;
+      padding: 10px;
+      border-radius: 10px;
+      background: rgba(15,23,42,0.95);
+      border: 1px solid rgba(31,41,55,0.95);
+      font-size: 0.78rem;
+      overflow: auto;
+      max-height: 260px;
+    }
+
+    @media (max-width: 900px) {
+      .kpi-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 720px) {
+      .header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .controls {
+        justify-content: flex-start;
+      }
+      .status-bar {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .endpoint {
+        max-width: 180px;
+      }
+      .kpi-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 480px) {
+      .kpi-grid {
+        grid-template-columns: repeat(1, minmax(0, 1fr));
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <div class="header">
+        <div>
+          <div class="title">DevTrack • Live Metrics</div>
+          <div class="heading-row">
+            <h1>API Health Dashboard</h1>
+            <span class="pill">Auto-refresh</span>
+          </div>
+          <p class="subtext">
+            Consumes DevTrack JSON stats and visualizes traffic, latency, and errors in real time.<br />
+            Point this to your <span class="mono">/__devtrack__/stats</span> endpoint.
+          </p>
+        </div>
+
+        <div class="controls">
+          <select id="refresh-interval">
+            <option value="5000">5s</option>
+            <option value="10000" selected>10s</option>
+            <option value="30000">30s</option>
+            <option value="60000">60s</option>
+            <option value="0">Pause</option>
+          </select>
+          <button id="refresh-btn" class="primary">
+            ⟳ Refresh now
+          </button>
+        </div>
+      </div>
+
+      <div class="status-bar">
+        <div class="status-left">
+          <span id="status-dot" class="dot"></span>
+          <span id="status-text">Idle</span>
+        </div>
+        <div class="status-right">
+          <span>Endpoint:</span>
+          <span class="mono endpoint" id="endpoint-label"></span>
+          <span>| Last updated: <span id="last-updated">–</span></span>
+        </div>
+      </div>
+
+      <div id="error-box" class="error" style="display: none;"></div>
+
+      <!-- KPI Cards (based on your summary) -->
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">Total Requests</div>
+          <div class="kpi-value mono" id="kpi-total-req">–</div>
+          <div class="kpi-sub" id="kpi-success-error">Success: –, Error: –</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Unique Endpoints</div>
+          <div class="kpi-value mono" id="kpi-unique-endpoints">–</div>
+          <div class="kpi-sub">Observed in this sample</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Average Latency</div>
+          <div class="kpi-value mono kpi-accent" id="kpi-avg-lat">–</div>
+          <div class="kpi-sub">From DevTrack summary</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Error Rate</div>
+          <div class="kpi-value mono kpi-danger" id="kpi-error-rate">–</div>
+          <div class="kpi-sub">error_count / total_requests</div>
+        </div>
+      </div>
+
+      <!-- Chart Area -->
+      <div class="chart-wrapper">
+        <div class="chart-header">
+          <h2>Latency & Errors (Last Requests)</h2>
+          <span class="chart-sub">Per-request latency vs error flag</span>
+        </div>
+        <div id="chart-container">
+          <canvas id="latencyChart" height="120"></canvas>
+        </div>
+        <div id="chart-empty" class="chart-empty" style="display:none;">
+          No <span class="mono">entries[]</span> found in response.  
+          Trigger some traffic to see the chart.
+        </div>
+      </div>
+
+      <div class="data-card">
+        <div class="data-card-header">
+          <h2>Latest Requests (entries)</h2>
+          <span class="badge" id="record-count-badge">0 records</span>
+        </div>
+
+        <div id="loader" class="loader" style="display: none;">
+          <span class="spinner"></span>
+          <span>Fetching latest data…</span>
+        </div>
+
+        <div id="table-container"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // === CONFIG ==========================================
+    const API_URL = "http://localhost:8000/__devtrack__/stats"; // ← adjust to your endpoint
+    let refreshIntervalMs = 10000; // default 10s
+    let refreshTimer = null;
+    let latencyChart = null;
+
+    // === DOM REFS ========================================
+    const endpointLabelEl = document.getElementById("endpoint-label");
+    const lastUpdatedEl = document.getElementById("last-updated");
+    const errorBoxEl = document.getElementById("error-box");
+    const tableContainerEl = document.getElementById("table-container");
+    const statusDotEl = document.getElementById("status-dot");
+    const statusTextEl = document.getElementById("status-text");
+    const loaderEl = document.getElementById("loader");
+    const recordCountBadgeEl = document.getElementById("record-count-badge");
+    const refreshBtn = document.getElementById("refresh-btn");
+    const refreshIntervalSelect = document.getElementById("refresh-interval");
+
+    const kpiTotalReqEl = document.getElementById("kpi-total-req");
+    const kpiUniqueEndpointsEl = document.getElementById("kpi-unique-endpoints");
+    const kpiAvgLatEl = document.getElementById("kpi-avg-lat");
+    const kpiErrorRateEl = document.getElementById("kpi-error-rate");
+    const kpiSuccessErrorEl = document.getElementById("kpi-success-error");
+
+    const chartCanvas = document.getElementById("latencyChart");
+    const chartContainer = document.getElementById("chart-container");
+    const chartEmptyEl = document.getElementById("chart-empty");
+
+    endpointLabelEl.textContent = API_URL;
+
+    // === HELPERS =========================================
+    function setStatus(isOnline, message) {
+      statusDotEl.classList.toggle("off", !isOnline);
+      statusTextEl.textContent = message;
+    }
+
+    function setLoading(isLoading) {
+      loaderEl.style.display = isLoading ? "inline-flex" : "none";
+      refreshBtn.disabled = isLoading;
+    }
+
+    function showError(message) {
+      if (!message) {
+        errorBoxEl.style.display = "none";
+        errorBoxEl.textContent = "";
+        return;
+      }
+      errorBoxEl.style.display = "block";
+      errorBoxEl.textContent = message;
+    }
+
+    function formatTime(date) {
+      return date.toLocaleTimeString(undefined, {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+      });
+    }
+
+    function isPlainObject(value) {
+      return value && typeof value === "object" && !Array.isArray(value);
+    }
+
+    function formatNumber(n) {
+      if (n === null || n === undefined || isNaN(n)) return "–";
+      return Number(n).toLocaleString();
+    }
+
+    function formatMs(n) {
+      if (n === null || n === undefined || isNaN(n)) return "–";
+      return `${Number(n).toFixed(2)} ms`;
+    }
+
+    function formatPercent(n) {
+      if (n === null || n === undefined || isNaN(n)) return "–";
+      return `${Number(n).toFixed(2)}%`;
+    }
+
+    // === DEVTRACK LAYOUT RENDERING =======================
+
+    function renderKpis(data) {
+      const summary = (data && data.summary && isPlainObject(data.summary))
+        ? data.summary
+        : {};
+
+      const totalRequests = summary.total_requests ?? data.total;
+      const uniqueEndpoints = summary.unique_endpoints;
+      const avgDuration = summary.avg_duration_ms;
+      const successCount = summary.success_count;
+      const errorCount = summary.error_count;
+
+      let errorRate = null;
+      if (typeof totalRequests === "number" && totalRequests > 0 && typeof errorCount === "number") {
+        errorRate = (errorCount / totalRequests) * 100;
+      }
+
+      kpiTotalReqEl.textContent = totalRequests !== undefined ? formatNumber(totalRequests) : "–";
+      kpiUniqueEndpointsEl.textContent = uniqueEndpoints !== undefined ? formatNumber(uniqueEndpoints) : "–";
+      kpiAvgLatEl.textContent = avgDuration !== undefined ? formatMs(avgDuration) : "–";
+      kpiErrorRateEl.textContent = errorRate !== null ? formatPercent(errorRate) : "–";
+
+      const successText = (typeof successCount === "number") ? successCount : "–";
+      const errorText = (typeof errorCount === "number") ? errorCount : "–";
+      kpiSuccessErrorEl.textContent = `Success: ${successText}, Error: ${errorText}`;
+    }
+
+    function extractEntries(data) {
+      if (data && Array.isArray(data.entries)) return data.entries;
+      return [];
+    }
+
+    function renderChart(data) {
+      const entries = extractEntries(data);
+
+      if (!entries.length) {
+        chartContainer.style.display = "none";
+        chartEmptyEl.style.display = "block";
+        return;
+      }
+
+      chartContainer.style.display = "block";
+      chartEmptyEl.style.display = "none";
+
+      const labels = [];
+      const latencyData = [];
+      const errorFlagData = [];
+
+      for (const entry of entries) {
+        const ts = entry.timestamp ?? entry.created_at ?? null;
+        const latency = entry.duration_ms ?? null;
+        const statusCode = entry.status_code ?? null;
+
+        // Label from timestamp
+        let label;
+        if (ts) {
+          const d = new Date(ts);
+          if (!isNaN(d.getTime())) {
+            label = d.toLocaleTimeString(undefined, {
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit"
+            });
+          } else {
+            label = String(ts);
+          }
+        } else {
+          label = `${labels.length + 1}`;
+        }
+
+        labels.push(label);
+        latencyData.push(latency ?? null);
+
+        // 0 if < 400, 100 if >= 400
+        if (typeof statusCode === "number" && statusCode >= 400) {
+          errorFlagData.push(100);
+        } else {
+          errorFlagData.push(0);
+        }
+      }
+
+      const chartData = {
+        labels,
+        datasets: [
+          {
+            label: "Latency (ms)",
+            data: latencyData,
+            yAxisID: "y",
+            tension: 0.3,
+            borderWidth: 2,
+            pointRadius: 2
+          },
+          {
+            label: "Error flag (0 / 100%)",
+            data: errorFlagData,
+            yAxisID: "y1",
+            tension: 0.3,
+            borderDash: [4, 4],
+            borderWidth: 2,
+            pointRadius: 2
+          }
+        ]
+      };
+
+      const chartConfig = {
+        type: "line",
+        data: chartData,
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: {
+            mode: "index",
+            intersect: false
+          },
+          plugins: {
+            legend: {
+              labels: {
+                color: "#e5e7eb",
+                font: { size: 11 }
+              }
+            },
+            tooltip: {
+              callbacks: {
+                label: function(ctx) {
+                  const label = ctx.dataset.label || "";
+                  const value = ctx.parsed.y;
+                  if (label.toLowerCase().includes("latency")) {
+                    return `${label}: ${value.toFixed(2)} ms`;
+                  } else {
+                    return `${label}: ${value.toFixed(0)}%`;
+                  }
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              ticks: {
+                color: "#9ca3af",
+                maxRotation: 45,
+                minRotation: 0,
+                autoSkip: true,
+                maxTicksLimit: 8,
+                font: { size: 10 }
+              },
+              grid: {
+                color: "rgba(55,65,81,0.4)"
+              }
+            },
+            y: {
+              position: "left",
+              title: {
+                display: true,
+                text: "Latency (ms)",
+                color: "#9ca3af"
+              },
+              ticks: {
+                color: "#9ca3af",
+                font: { size: 10 }
+              },
+              grid: {
+                color: "rgba(31,41,55,0.5)"
+              }
+            },
+            y1: {
+              position: "right",
+              title: {
+                display: true,
+                text: "Error flag (%)",
+                color: "#9ca3af"
+              },
+              ticks: {
+                color: "#9ca3af",
+                font: { size: 10 }
+              },
+              grid: {
+                drawOnChartArea: false
+              },
+              min: 0,
+              max: 100
+            }
+          }
+        }
+      };
+
+      if (latencyChart) {
+        latencyChart.data = chartData;
+        latencyChart.options = chartConfig.options;
+        latencyChart.update();
+      } else {
+        latencyChart = new Chart(chartCanvas, chartConfig);
+      }
+    }
+
+    // === TABLE / RAW RENDERING ===========================
+
+    function renderTableFromArray(arr) {
+      if (!arr.length) {
+        tableContainerEl.innerHTML = '<div class="empty-state">No records returned from API.</div>';
+        recordCountBadgeEl.textContent = "0 records";
+        return;
+      }
+
+      const keys = Array.from(
+        arr.reduce((set, obj) => {
+          if (isPlainObject(obj)) {
+            Object.keys(obj).forEach(k => set.add(k));
+          }
+          return set;
+        }, new Set())
+      );
+
+      const headerHtml = keys.map(k => `<th>${k}</th>`).join("");
+      const bodyHtml = arr.map(row => {
+        const cells = keys.map(k => {
+          let val = row[k];
+          if (val === null || val === undefined) return "<td>–</td>";
+          if (typeof val === "object") {
+            return `<td><span class="mono">${JSON.stringify(val)}</span></td>`;
+          }
+          return `<td>${val}</td>`;
+        }).join("");
+        return `<tr>${cells}</tr>`;
+      }).join("");
+
+      tableContainerEl.innerHTML = `
+        <div style="overflow: auto; max-height: 320px;">
+          <table>
+            <thead><tr>${headerHtml}</tr></thead>
+            <tbody>${bodyHtml}</tbody>
+          </table>
+        </div>
+      `;
+
+      recordCountBadgeEl.textContent = `${arr.length} record${arr.length !== 1 ? "s" : ""}`;
+    }
+
+    function renderFallbackJson(data) {
+      tableContainerEl.innerHTML = `
+        <div class="empty-state" style="text-align:left;">
+          Response does not have <span class="mono">entries[]</span>; showing raw JSON.
+        </div>
+        <pre class="json-dump">${JSON.stringify(data, null, 2)}</pre>
+      `;
+      recordCountBadgeEl.textContent = "–";
+    }
+
+    function renderData(data) {
+      // DevTrack-specific bits
+      renderKpis(data);
+      renderChart(data);
+
+      const entries = extractEntries(data);
+      if (entries.length) {
+        renderTableFromArray(entries);
+      } else {
+        renderFallbackJson(data);
+      }
+    }
+
+    // === FETCH LOGIC =====================================
+
+    async function fetchData() {
+      setLoading(true);
+      showError("");
+      setStatus(true, "Fetching…");
+
+      try {
+        const res = await fetch(API_URL, {
+          headers: {
+            "Accept": "application/json"
+          },
+          cache: "no-store"
+        });
+
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status} ${res.statusText}`);
+        }
+
+        const data = await res.json();
+        renderData(data);
+
+        const now = new Date();
+        lastUpdatedEl.textContent = formatTime(now);
+        setStatus(true, "Online · Last fetch successful");
+      } catch (err) {
+        console.error(err);
+        showError(`Failed to fetch data: ${err.message}`);
+        setStatus(false, "Offline · Error while fetching");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    function startAutoRefresh() {
+      if (refreshTimer) {
+        clearInterval(refreshTimer);
+      }
+      if (refreshIntervalMs > 0) {
+        refreshTimer = setInterval(fetchData, refreshIntervalMs);
+      } else {
+        setStatus(true, "Paused · Auto-refresh off");
+      }
+    }
+
+    // === EVENT HANDLERS ==================================
+    refreshBtn.addEventListener("click", () => {
+      fetchData();
+    });
+
+    refreshIntervalSelect.addEventListener("change", (e) => {
+      const value = Number(e.target.value);
+      refreshIntervalMs = value;
+      if (value === 0) {
+        if (refreshTimer) clearInterval(refreshTimer);
+        setStatus(true, "Paused · Auto-refresh off");
+      } else {
+        startAutoRefresh();
+        setStatus(true, `Online · Auto-refresh every ${value / 1000}s`);
+      }
+    });
+
+    // === INIT ============================================
+    (function init() {
+      setStatus(true, "Idle · Waiting for first fetch");
+      fetchData();        // initial load
+      startAutoRefresh(); // start timer
+    })();
+  </script>
+</body>
+</html>

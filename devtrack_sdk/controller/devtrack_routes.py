@@ -1,6 +1,8 @@
+from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import HTMLResponse
 
 from devtrack_sdk.database import get_db
 
@@ -121,3 +123,35 @@ async def delete_log_by_id(log_id: int):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to delete log: {str(e)}")
+
+
+@router.get(
+    "/__devtrack__/dashboard", include_in_schema=False, response_class=HTMLResponse
+)
+async def dashboard(request: Request):
+    """Serve the DevTrack dashboard HTML page."""
+    try:
+        # Get the path to the dashboard HTML file
+        dashboard_path = Path(__file__).parent.parent / "dashboard" / "index.html"
+
+        if not dashboard_path.exists():
+            raise HTTPException(status_code=404, detail="Dashboard file not found")
+
+        # Read the HTML content
+        html_content = dashboard_path.read_text(encoding="utf-8")
+
+        # Replace the hardcoded API URL with a dynamic one based on the request
+        base_url = str(request.base_url).rstrip("/")
+        api_url = f"{base_url}/__devtrack__/stats"
+        html_content = html_content.replace(
+            'const API_URL = "http://localhost:8000/__devtrack__/stats";',
+            f'const API_URL = "{api_url}";',
+        )
+
+        return HTMLResponse(content=html_content)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to load dashboard: {str(e)}"
+        )
