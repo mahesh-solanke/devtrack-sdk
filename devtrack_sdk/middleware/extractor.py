@@ -42,19 +42,9 @@ async def extract_devtrack_log_data(
 
     # Consumer Segmentation: Identify client from multiple sources
     client_identifier = _identify_client(request, user_id)
-    client_identifier_hash = (
-        _hash_identifier(client_identifier) if client_identifier else None
-    )
 
     # Extract real public IP address (handles proxies, load balancers, etc.)
     public_ip = _get_public_ip(request)
-
-    # Hash all PII for privacy: user_id, IP address, user_agent
-    user_id_hash = _hash_identifier(user_id) if user_id else None
-    ip_hash = (
-        _hash_identifier(public_ip) if public_ip and public_ip != "unknown" else None
-    )
-    user_agent_hash = _hash_identifier(user_agent) if user_agent else None
 
     return {
         "path": request.url.path,  # Original path with actual values
@@ -62,19 +52,18 @@ async def extract_devtrack_log_data(
         "method": request.method,
         "status_code": response.status_code,
         "timestamp": start_time.isoformat(),
-        "client_ip": ip_hash or public_ip,  # Hashed IP (fallback if hash fails)
+        "client_ip": public_ip,  # Original IP address
         "duration_ms": round(duration, 2),
-        "user_agent": user_agent_hash or user_agent,  # Hashed user_agent
-        "referer": referer,  # Referer is less sensitive, keep as-is
+        "user_agent": user_agent,  # Original user agent
+        "referer": referer,
         "query_params": query_params,
         "path_params": path_params,
         "request_body": request_body,
         "response_size": response_size,
-        "user_id": user_id_hash or user_id,  # Hashed user_id (fallback if fails)
-        "role": role,  # Role is not PII, keep as-is
+        "user_id": user_id,  # Original user ID
+        "role": role,
         "trace_id": str(uuid.uuid4()),
-        "client_identifier": client_identifier,  # Original (internal use only)
-        "client_identifier_hash": client_identifier_hash,  # Hashed for privacy
+        "client_identifier": client_identifier,  # Original client identifier
     }
 
 

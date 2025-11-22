@@ -110,3 +110,7 @@ docs/_build/
 docs/_static/*
 !docs/_static/.gitkeep
 docs/_templates/
+
+# Dashboard
+devtrack_sdk/dashboard/dist/
+devtrack_sdk/dashboard/node_modules/

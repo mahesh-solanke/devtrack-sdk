@@ -35,6 +35,12 @@ dependencies = [
 where = ["."]
 include = ["devtrack_sdk*"]
 
+[tool.setuptools.package-data]
+devtrack_sdk = [
+    "dashboard/dist/**/*",
+    "dashboard/index.html",
+]
+
 [project.scripts]
 devtrack = "devtrack_sdk.cli:app"
 

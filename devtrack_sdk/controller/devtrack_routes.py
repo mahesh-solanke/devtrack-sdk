@@ -1,8 +1,9 @@
+import re
 from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 
 from devtrack_sdk.database import get_db
 
@@ -183,48 +184,115 @@ async def consumers(
 async def dashboard(request: Request):
     """Serve the DevTrack dashboard HTML page."""
     try:
-        # Get the path to the dashboard HTML file
-        dashboard_path = Path(__file__).parent.parent / "dashboard" / "index.html"
+        # Check for built React app first
+        dashboard_dist = Path(__file__).parent.parent / "dashboard" / "dist"
+        dashboard_index = dashboard_dist / "index.html"
 
-        if not dashboard_path.exists():
-            raise HTTPException(status_code=404, detail="Dashboard file not found")
+        # Fallback to old HTML if built version doesn't exist
+        if not dashboard_index.exists():
+            dashboard_path = Path(__file__).parent.parent / "dashboard" / "index.html"
+            if not dashboard_path.exists():
+                raise HTTPException(status_code=404, detail="Dashboard file not found")
 
-        # Read the HTML content
-        html_content = dashboard_path.read_text(encoding="utf-8")
+            # Read the HTML content
+            html_content = dashboard_path.read_text(encoding="utf-8")
 
-        # Replace the hardcoded API URL with a dynamic one based on the request
+            # Replace the hardcoded API URL with a dynamic one based on the request
+            base_url = str(request.base_url).rstrip("/")
+            api_url = f"{base_url}/__devtrack__/stats"
+            html_content = html_content.replace(
+                'const API_URL = "http://localhost:8000/__devtrack__/stats";',
+                f'const API_URL = "{api_url}";',
+            )
+
+            # Replace metrics API URLs
+            traffic_url_old = (
+                "const TRAFFIC_API_URL = "
+                '"http://localhost:8000/__devtrack__/metrics/traffic";'
+            )
+            traffic_url_new = (
+                f'const TRAFFIC_API_URL = "{base_url}/__devtrack__/metrics/traffic";'
+            )
+            html_content = html_content.replace(traffic_url_old, traffic_url_new)
+
+            errors_url_old = (
+                "const ERRORS_API_URL = "
+                '"http://localhost:8000/__devtrack__/metrics/errors";'
+            )
+            errors_url_new = (
+                f'const ERRORS_API_URL = "{base_url}/__devtrack__/metrics/errors";'
+            )
+            html_content = html_content.replace(errors_url_old, errors_url_new)
+            perf_url_old = (
+                "const PERF_API_URL = "
+                '"http://localhost:8000/__devtrack__/metrics/perf";'
+            )
+            perf_url_new = (
+                f'const PERF_API_URL = "{base_url}/__devtrack__/metrics/perf";'
+            )
+            html_content = html_content.replace(perf_url_old, perf_url_new)
+            consumers_url_old = (
+                "const CONSUMERS_API_URL = "
+                '"http://localhost:8000/__devtrack__/consumers";'
+            )
+            consumers_url_new = (
+                f'const CONSUMERS_API_URL = "{base_url}/__devtrack__/consumers";'
+            )
+            html_content = html_content.replace(consumers_url_old, consumers_url_new)
+
+            return HTMLResponse(content=html_content)
+
+        # Serve built React app
+        html_content = dashboard_index.read_text(encoding="utf-8")
+
+        # Inject API URLs into the HTML
         base_url = str(request.base_url).rstrip("/")
         api_url = f"{base_url}/__devtrack__/stats"
+        traffic_url = f"{base_url}/__devtrack__/metrics/traffic"
+        errors_url = f"{base_url}/__devtrack__/metrics/errors"
+        perf_url = f"{base_url}/__devtrack__/metrics/perf"
+        consumers_url = f"{base_url}/__devtrack__/consumers"
+
+        # Replace API URL placeholders
         html_content = html_content.replace(
-            'const API_URL = "http://localhost:8000/__devtrack__/stats";',
-            f'const API_URL = "{api_url}";',
+            "window.API_URL = window.API_URL || '/__devtrack__/stats';",
+            f"window.API_URL = '{api_url}';",
+        )
+        traffic_placeholder = (
+            "window.TRAFFIC_API_URL = window.TRAFFIC_API_URL || "
+            "'/__devtrack__/metrics/traffic';"
+        )
+        html_content = html_content.replace(
+            traffic_placeholder, f"window.TRAFFIC_API_URL = '{traffic_url}';"
+        )
+        errors_placeholder = (
+            "window.ERRORS_API_URL = window.ERRORS_API_URL || "
+            "'/__devtrack__/metrics/errors';"
+        )
+        html_content = html_content.replace(
+            errors_placeholder, f"window.ERRORS_API_URL = '{errors_url}';"
+        )
+        perf_placeholder = (
+            "window.PERF_API_URL = window.PERF_API_URL || "
+            "'/__devtrack__/metrics/perf';"
+        )
+        html_content = html_content.replace(
+            perf_placeholder, f"window.PERF_API_URL = '{perf_url}';"
+        )
+        consumers_placeholder = (
+            "window.CONSUMERS_API_URL = window.CONSUMERS_API_URL || "
+            "'/__devtrack__/consumers';"
+        )
+        html_content = html_content.replace(
+            consumers_placeholder, f"window.CONSUMERS_API_URL = '{consumers_url}';"
         )
 
-        # Replace metrics API URLs
-        traffic_url_old = (
-            "const TRAFFIC_API_URL = "
-            '"http://localhost:8000/__devtrack__/metrics/traffic";'
-        )
-        traffic_url_new = (
-            f'const TRAFFIC_API_URL = "{base_url}/__devtrack__/metrics/traffic";'
-        )
-        html_content = html_content.replace(traffic_url_old, traffic_url_new)
-
-        errors_url_old = (
-            "const ERRORS_API_URL = "
-            '"http://localhost:8000/__devtrack__/metrics/errors";'
-        )
-        errors_url_new = (
-            f'const ERRORS_API_URL = "{base_url}/__devtrack__/metrics/errors";'
-        )
-        html_content = html_content.replace(errors_url_old, errors_url_new)
-        html_content = html_content.replace(
-            'const PERF_API_URL = "http://localhost:8000/__devtrack__/metrics/perf";',
-            f'const PERF_API_URL = "{base_url}/__devtrack__/metrics/perf";',
-        )
-        html_content = html_content.replace(
-            'const CONSUMERS_API_URL = "http://localhost:8000/__devtrack__/consumers";',
-            f'const CONSUMERS_API_URL = "{base_url}/__devtrack__/consumers";',
+        # Rewrite asset paths to use FastAPI route
+        # Vite builds with relative paths (./assets/...) when base is './'
+        html_content = re.sub(
+            r'(href|src)=["\'](\.\/)?assets\/([^"\']+)["\']',
+            r'\1="/__devtrack__/dashboard/assets/\3"',
+            html_content,
         )
 
         return HTMLResponse(content=html_content)
@@ -234,3 +302,15 @@ async def dashboard(request: Request):
         raise HTTPException(
             status_code=500, detail=f"Failed to load dashboard: {str(e)}"
         )
+
+
+@router.get("/__devtrack__/dashboard/assets/{file_path:path}", include_in_schema=False)
+async def dashboard_assets(file_path: str):
+    """Serve static assets from the built React dashboard."""
+    dashboard_dist = Path(__file__).parent.parent / "dashboard" / "dist" / "assets"
+    asset_path = dashboard_dist / file_path
+
+    if not asset_path.exists() or not str(asset_path).startswith(str(dashboard_dist)):
+        raise HTTPException(status_code=404, detail="Asset not found")
+
+    return FileResponse(asset_path)

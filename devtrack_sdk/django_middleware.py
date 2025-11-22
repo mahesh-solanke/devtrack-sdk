@@ -25,6 +25,12 @@ class DevTrackDjangoMiddleware(MiddlewareMixin):
         self.skip_paths = [
             "/__devtrack__/stats",
             "/__devtrack__/logs",
+            "/__devtrack__/track",
+            "/__devtrack__/dashboard",
+            "/__devtrack__/metrics/traffic",
+            "/__devtrack__/metrics/errors",
+            "/__devtrack__/metrics/perf",
+            "/__devtrack__/consumers",
             "/admin/",
             "/static/",
             "/media/",
@@ -45,7 +51,8 @@ class DevTrackDjangoMiddleware(MiddlewareMixin):
         super().__init__(get_response)
 
     def __call__(self, request: HttpRequest) -> HttpResponse:
-        if request.path in self.skip_paths:
+        # Skip logging for DevTrack endpoints and excluded paths
+        if request.path in self.skip_paths or request.path.startswith("/__devtrack__/"):
             return self.get_response(request)
 
         start_time = datetime.now(timezone.utc)
@@ -115,18 +122,6 @@ class DevTrackDjangoMiddleware(MiddlewareMixin):
 
         # Consumer Segmentation: Identify client from multiple sources
         client_identifier = self._identify_client(request, user_id)
-        client_identifier_hash = (
-            self._hash_identifier(client_identifier) if client_identifier else None
-        )
-
-        # Hash all PII for privacy: user_id, IP address, user_agent
-        user_id_hash = self._hash_identifier(user_id) if user_id else None
-        ip_hash = (
-            self._hash_identifier(client_ip)
-            if client_ip and client_ip != "unknown"
-            else None
-        )
-        user_agent_hash = self._hash_identifier(user_agent) if user_agent else None
 
         return {
             "path": request.path,
@@ -134,21 +129,20 @@ class DevTrackDjangoMiddleware(MiddlewareMixin):
             "method": request.method,
             "status_code": response.status_code,
             "timestamp": start_time.isoformat(),
-            "client_ip": ip_hash or client_ip,  # Hashed IP (fallback if hash fails)
+            "client_ip": client_ip,  # Original IP address
             "duration_ms": round(duration, 2),
-            "user_agent": user_agent_hash or user_agent,  # Hashed user_agent
-            "referer": referer,  # Referer is less sensitive, keep as-is
+            "user_agent": user_agent,  # Original user agent
+            "referer": referer,
             "query_params": query_params,
             "path_params": (
                 dict(request.resolver_match.kwargs) if request.resolver_match else {}
             ),
             "request_body": request_body,
             "response_size": response_size,
-            "user_id": user_id_hash or user_id,  # Hashed user_id (fallback if fails)
-            "role": role,  # Role is not PII, keep as-is
+            "user_id": user_id,  # Original user ID
+            "role": role,
             "trace_id": str(uuid.uuid4()),
-            "client_identifier": client_identifier,  # Original (internal use only)
-            "client_identifier_hash": client_identifier_hash,  # Hashed for privacy
+            "client_identifier": client_identifier,  # Original client identifier
         }
 
     def _identify_client(

@@ -1,8 +1,12 @@
 import json
+import threading
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import duckdb
+
+# Thread-local storage for database connections
+_thread_local = threading.local()
 
 
 class DevTrackDB:
@@ -11,8 +15,18 @@ class DevTrackDB:
     def __init__(self, db_path: str = "devtrack_logs.db"):
         """Initialize the database connection and create tables if they don't exist."""
         self.db_path = db_path
-        self.conn = duckdb.connect(db_path)
+        self._lock = threading.Lock()
+        # Create initial connection for table creation
+        self._init_conn = duckdb.connect(db_path)
         self._create_tables()
+        self._init_conn.close()
+
+    @property
+    def conn(self):
+        """Get thread-local database connection."""
+        if not hasattr(_thread_local, "connection") or _thread_local.connection is None:
+            _thread_local.connection = duckdb.connect(self.db_path)
+        return _thread_local.connection
 
     def _create_tables(self):
         """Create the logs table if it doesn't exist."""
@@ -37,20 +51,27 @@ class DevTrackDB:
             user_id VARCHAR,
             role VARCHAR,
             trace_id VARCHAR,
-            client_identifier_hash VARCHAR,
+            client_identifier VARCHAR,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """
-        self.conn.execute("CREATE SEQUENCE IF NOT EXISTS seq_log_id START 1")
-        self.conn.execute(create_table_sql)
+        self._init_conn.execute("CREATE SEQUENCE IF NOT EXISTS seq_log_id START 1")
+        self._init_conn.execute(create_table_sql)
 
-        # Add client_identifier_hash column if it doesn't exist (migration)
+        # Migration: Rename client_identifier_hash to client_identifier
         try:
-            self.conn.execute(
-                "ALTER TABLE request_logs ADD COLUMN client_identifier_hash VARCHAR"
+            self._init_conn.execute(
+                "ALTER TABLE request_logs RENAME COLUMN "
+                "client_identifier_hash TO client_identifier"
             )
         except Exception:
-            pass  # Column already exists
+            # Column might not exist or already renamed, try adding client_identifier
+            try:
+                self._init_conn.execute(
+                    "ALTER TABLE request_logs ADD COLUMN client_identifier VARCHAR"
+                )
+            except Exception:
+                pass  # Column already exists
 
     def insert_log(self, log_data: Dict[str, Any]) -> int:
         """Insert a log entry into the database."""
@@ -66,7 +87,7 @@ class DevTrackDB:
         INSERT INTO request_logs (
             path, path_pattern, method, status_code, timestamp, client_ip,
             duration_ms, user_agent, referer, query_params, path_params,
-            request_body, response_size, user_id, role, trace_id, client_identifier_hash
+            request_body, response_size, user_id, role, trace_id, client_identifier
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
 
@@ -89,7 +110,8 @@ class DevTrackDB:
                 log_data.get("user_id"),
                 log_data.get("role"),
                 log_data.get("trace_id"),
-                log_data.get("client_identifier_hash"),
+                log_data.get("client_identifier")
+                or log_data.get("client_identifier_hash"),
             ),
         )
 
@@ -99,6 +121,35 @@ class DevTrackDB:
             "SELECT id FROM request_logs ORDER BY id DESC LIMIT 1"
         ).fetchone()
         return result[0] if result else None
+
+    def _safe_json_loads(self, value: Any, default: Any = None) -> Any:
+        """Safely parse JSON string, returning default on error."""
+        if value is None:
+            return default if default is not None else {}
+        if isinstance(value, dict):
+            return value
+        if isinstance(value, str):
+            if not value.strip():
+                return default if default is not None else {}
+            try:
+                return json.loads(value)
+            except (json.JSONDecodeError, TypeError):
+                return default if default is not None else {}
+        return default if default is not None else {}
+
+    def _format_log_dict(self, log_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """Format a log dictionary by parsing JSON fields and formatting timestamp."""
+        # Convert JSON strings back to dicts (handle empty/invalid JSON)
+        log_dict["query_params"] = self._safe_json_loads(log_dict.get("query_params"))
+        log_dict["path_params"] = self._safe_json_loads(log_dict.get("path_params"))
+        log_dict["request_body"] = self._safe_json_loads(log_dict.get("request_body"))
+        # Convert timestamp back to ISO format
+        if log_dict.get("timestamp"):
+            if hasattr(log_dict["timestamp"], "isoformat"):
+                log_dict["timestamp"] = log_dict["timestamp"].isoformat()
+            else:
+                log_dict["timestamp"] = str(log_dict["timestamp"])
+        return log_dict
 
     def get_all_logs(
         self, limit: Optional[int] = None, offset: int = 0
@@ -114,12 +165,7 @@ class DevTrackDB:
         logs = []
         for row in result:
             log_dict = dict(zip(columns, row))
-            # Convert JSON strings back to dicts
-            log_dict["query_params"] = json.loads(log_dict["query_params"])
-            log_dict["path_params"] = json.loads(log_dict["path_params"])
-            log_dict["request_body"] = json.loads(log_dict["request_body"])
-            # Convert timestamp back to ISO format
-            log_dict["timestamp"] = log_dict["timestamp"].isoformat()
+            log_dict = self._format_log_dict(log_dict)
             logs.append(log_dict)
 
         return logs
@@ -145,12 +191,7 @@ class DevTrackDB:
         logs = []
         for row in result:
             log_dict = dict(zip(columns, row))
-            # Convert JSON strings back to dicts
-            log_dict["query_params"] = json.loads(log_dict["query_params"])
-            log_dict["path_params"] = json.loads(log_dict["path_params"])
-            log_dict["request_body"] = json.loads(log_dict["request_body"])
-            # Convert timestamp back to ISO format
-            log_dict["timestamp"] = log_dict["timestamp"].isoformat()
+            log_dict = self._format_log_dict(log_dict)
             logs.append(log_dict)
 
         return logs
@@ -171,12 +212,7 @@ class DevTrackDB:
         logs = []
         for row in result:
             log_dict = dict(zip(columns, row))
-            # Convert JSON strings back to dicts
-            log_dict["query_params"] = json.loads(log_dict["query_params"])
-            log_dict["path_params"] = json.loads(log_dict["path_params"])
-            log_dict["request_body"] = json.loads(log_dict["request_body"])
-            # Convert timestamp back to ISO format
-            log_dict["timestamp"] = log_dict["timestamp"].isoformat()
+            log_dict = self._format_log_dict(log_dict)
             logs.append(log_dict)
 
         return logs
@@ -326,10 +362,10 @@ class DevTrackDB:
         result = self.conn.execute(sql).fetchall()
         return [
             {
-                "timestamp": (
+                "time_bucket": (
                     row[0].isoformat() if hasattr(row[0], "isoformat") else str(row[0])
                 ),
-                "count": row[1],
+                "request_count": row[1],
             }
             for row in result
         ]
@@ -352,7 +388,7 @@ class DevTrackDB:
         result = self.conn.execute(sql).fetchall()
         error_trends = [
             {
-                "timestamp": (
+                "time_bucket": (
                     row[0].isoformat() if hasattr(row[0], "isoformat") else str(row[0])
                 ),
                 "total_requests": row[1],
@@ -381,10 +417,9 @@ class DevTrackDB:
         top_failing_result = self.conn.execute(top_failing_sql).fetchall()
         top_failing_routes = [
             {
-                "path": row[0],
-                "method": row[1],
+                "route": f"{row[1]} {row[0]}" if row[0] else "-",
                 "error_count": row[2],
-                "error_percentage": (
+                "error_rate": (
                     round((row[2] / total_errors * 100), 2) if total_errors > 0 else 0
                 ),
             }
@@ -392,7 +427,7 @@ class DevTrackDB:
         ]
 
         return {
-            "trends": error_trends,
+            "error_trends": error_trends,
             "top_failing_routes": top_failing_routes,
         }
 
@@ -438,7 +473,7 @@ class DevTrackDB:
 
                 performance_metrics.append(
                     {
-                        "timestamp": time_bucket,
+                        "time_bucket": time_bucket,
                         "p50": round(
                             (
                                 sorted_durations[p50_idx]
@@ -509,8 +544,8 @@ class DevTrackDB:
             }
 
         return {
-            "over_time": performance_metrics,
-            "overall": overall_metrics,
+            "latency_over_time": performance_metrics,
+            "overall_stats": overall_metrics,
         }
 
     def get_consumer_segments(self, hours: int = 24) -> Dict[str, Any]:
@@ -518,7 +553,7 @@ class DevTrackDB:
         # Get unique clients and their stats, including most recent IP
         sql = f"""
         SELECT
-            client_identifier_hash,
+            client_identifier,
             COUNT(*) as request_count,
             COUNT(DISTINCT path_pattern) as unique_endpoints,
             AVG(duration_ms) as avg_latency,
@@ -526,13 +561,13 @@ class DevTrackDB:
             MIN(timestamp) as first_seen,
             MAX(timestamp) as last_seen,
             (SELECT client_ip FROM request_logs r2
-             WHERE r2.client_identifier_hash = request_logs.client_identifier_hash
+             WHERE r2.client_identifier = request_logs.client_identifier
              AND r2.timestamp >= CURRENT_TIMESTAMP - INTERVAL '{hours} hours'
              ORDER BY r2.timestamp DESC LIMIT 1) as latest_ip
         FROM request_logs
         WHERE timestamp >= CURRENT_TIMESTAMP - INTERVAL '{hours} hours'
-            AND client_identifier_hash IS NOT NULL
-        GROUP BY client_identifier_hash
+            AND client_identifier IS NOT NULL
+        GROUP BY client_identifier
         ORDER BY request_count DESC
         LIMIT 50
         """
@@ -542,10 +577,12 @@ class DevTrackDB:
         for row in result:
             segments.append(
                 {
-                    "client_hash": row[0],
+                    # Original client identifier (kept key name for API compatibility)
+                    "client_identifier_hash": row[0],
+                    "client_identifier": row[0],  # Also include as client_identifier
                     "request_count": row[1],
                     "unique_endpoints": row[2],
-                    "avg_latency": round(row[3], 2) if row[3] is not None else None,
+                    "avg_latency_ms": round(row[3], 2) if row[3] is not None else None,
                     "error_count": row[4],
                     "error_rate": (
                         round((row[4] / row[1] * 100), 2) if row[1] > 0 else 0
@@ -560,16 +597,16 @@ class DevTrackDB:
                         if hasattr(row[6], "isoformat")
                         else str(row[6])
                     ),
-                    "public_ip": row[7] if row[7] and row[7] != "unknown" else None,
+                    "latest_ip": row[7] if row[7] and row[7] != "unknown" else None,
                 }
             )
 
         # Get total unique clients
         total_clients_sql = f"""
-        SELECT COUNT(DISTINCT client_identifier_hash)
+        SELECT COUNT(DISTINCT client_identifier)
         FROM request_logs
         WHERE timestamp >= CURRENT_TIMESTAMP - INTERVAL '{hours} hours'
-            AND client_identifier_hash IS NOT NULL
+            AND client_identifier IS NOT NULL
         """
         total_clients = self.conn.execute(total_clients_sql).fetchone()[0] or 0
 
@@ -577,10 +614,10 @@ class DevTrackDB:
         source_sql = f"""
         SELECT
             CASE
-                WHEN client_identifier_hash IS NULL THEN 'unknown'
+                WHEN client_identifier IS NULL THEN 'unknown'
                 ELSE 'identified'
             END as source_type,
-            COUNT(DISTINCT client_identifier_hash) as client_count,
+            COUNT(DISTINCT client_identifier) as client_count,
             COUNT(*) as request_count
         FROM request_logs
         WHERE timestamp >= CURRENT_TIMESTAMP - INTERVAL '{hours} hours'
@@ -614,7 +651,7 @@ class DevTrackDB:
             COUNT(CASE WHEN status_code >= 200 AND status_code < 300
                 THEN 1 END) as success_count
         FROM request_logs
-        WHERE client_identifier_hash = ?
+        WHERE client_identifier = ?
             AND timestamp >= CURRENT_TIMESTAMP - INTERVAL '{hours} hours'
         """
         result = self.conn.execute(sql, (client_hash,)).fetchone()
@@ -645,7 +682,7 @@ class DevTrackDB:
             date_trunc('minute', timestamp) as time_bucket,
             COUNT(*) as request_count
         FROM request_logs
-        WHERE client_identifier_hash = ?
+        WHERE client_identifier = ?
             AND timestamp >= CURRENT_TIMESTAMP - INTERVAL '{hours} hours'
         GROUP BY date_trunc('minute', timestamp)
         ORDER BY time_bucket ASC

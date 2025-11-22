@@ -13,6 +13,13 @@ setup(
     url="https://github.com/mahesh-solanke/devtrack-sdk",
     license="MIT",
     packages=find_packages(),
+    package_data={
+        "devtrack_sdk": [
+            "dashboard/dist/**/*",
+            "dashboard/index.html",
+        ],
+    },
+    include_package_data=True,
     install_requires=["fastapi", "httpx", "starlette", "django>=4.0.0"],
     python_requires=">=3.10",
     classifiers=[
