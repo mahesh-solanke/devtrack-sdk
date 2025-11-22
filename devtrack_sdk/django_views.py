@@ -41,7 +41,9 @@ def stats_view(request):
         db = get_db_instance()
 
         # Get query parameters
-        limit = int(request.GET.get("limit", 50))
+        # Default to None (no limit) to return all records, or use provided limit
+        limit_str = request.GET.get("limit")
+        limit = int(limit_str) if limit_str else None
         offset = int(request.GET.get("offset", 0))
         path_pattern = request.GET.get("path_pattern")
         status_code = request.GET.get("status_code")

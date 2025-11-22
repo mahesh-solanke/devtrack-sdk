@@ -481,7 +481,63 @@
         </div>
       </div>
 
-      <!-- Chart Area -->
+      <!-- Traffic Overview -->
+      <div class="chart-wrapper">
+        <div class="chart-header">
+          <h2>Traffic Overview</h2>
+          <span class="chart-sub">Requests over time</span>
+        </div>
+        <div id="traffic-chart-container">
+          <canvas id="trafficChart" height="120"></canvas>
+        </div>
+        <div id="traffic-chart-empty" class="chart-empty" style="display:none;">
+          No traffic data available. Trigger some requests to see the chart.
+        </div>
+      </div>
+
+      <!-- Error Trends -->
+      <div class="chart-wrapper">
+        <div class="chart-header">
+          <h2>Error Trends</h2>
+          <span class="chart-sub">Failure rates over time</span>
+        </div>
+        <div id="error-trends-chart-container">
+          <canvas id="errorTrendsChart" height="120"></canvas>
+        </div>
+        <div id="error-trends-chart-empty" class="chart-empty" style="display:none;">
+          No error data available.
+        </div>
+      </div>
+
+      <div class="data-card" style="margin-top: 6px;">
+        <div class="data-card-header">
+          <h2>Top Failing Routes</h2>
+          <span class="badge" id="top-failing-count-badge">0 routes</span>
+        </div>
+        <div id="top-failing-routes-container"></div>
+      </div>
+
+      <!-- Performance Metrics -->
+      <div class="chart-wrapper" style="margin-top: 6px;">
+        <div class="chart-header">
+          <h2>Performance Metrics</h2>
+          <span class="chart-sub">p50/p95/p99 latency over time</span>
+        </div>
+        <div id="perf-chart-container">
+          <canvas id="perfChart" height="120"></canvas>
+        </div>
+        <div id="perf-chart-empty" class="chart-empty" style="display:none;">
+          No performance data available.
+        </div>
+        <div id="perf-overall" style="margin-top: 8px; display: flex; gap: 12px; flex-wrap: wrap; font-size: 0.75rem; color: var(--muted);">
+          <span>Overall p50: <span class="mono kpi-accent" id="perf-overall-p50">–</span></span>
+          <span>Overall p95: <span class="mono kpi-accent" id="perf-overall-p95">–</span></span>
+          <span>Overall p99: <span class="mono kpi-accent" id="perf-overall-p99">–</span></span>
+          <span>Overall avg: <span class="mono kpi-accent" id="perf-overall-avg">–</span></span>
+        </div>
+      </div>
+
+      <!-- Chart Area (Original) -->
       <div class="chart-wrapper">
         <div class="chart-header">
           <h2>Latency & Errors (Last Requests)</h2>
@@ -496,10 +552,45 @@
         </div>
       </div>
 
+      <!-- Consumer Segmentation -->
+      <div class="data-card" style="margin-top: 6px;">
+        <div class="data-card-header">
+          <h2>Consumer Segmentation</h2>
+          <span class="badge" id="consumers-count-badge">0 clients</span>
+        </div>
+        <div id="consumers-container"></div>
+      </div>
+
       <div class="data-card">
         <div class="data-card-header">
-          <h2>Latest Requests (entries)</h2>
+          <h2>Request Logs</h2>
           <span class="badge" id="record-count-badge">0 records</span>
+        </div>
+
+        <div style="margin-bottom: 10px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+          <input 
+            type="text" 
+            id="search-input" 
+            placeholder="Search logs..." 
+            style="flex: 1; min-width: 200px; padding: 6px 10px; border-radius: 8px; border: 1px solid rgba(148,163,184,0.5); background: rgba(15,23,42,0.9); color: var(--text); font-size: 0.85rem; outline: none;"
+          />
+          <select id="filter-method" style="padding: 6px 10px; border-radius: 8px; border: 1px solid rgba(148,163,184,0.5); background: rgba(15,23,42,0.9); color: var(--text); font-size: 0.85rem; outline: none;">
+            <option value="">All Methods</option>
+            <option value="GET">GET</option>
+            <option value="POST">POST</option>
+            <option value="PUT">PUT</option>
+            <option value="DELETE">DELETE</option>
+            <option value="PATCH">PATCH</option>
+          </select>
+          <select id="filter-status" style="padding: 6px 10px; border-radius: 8px; border: 1px solid rgba(148,163,184,0.5); background: rgba(15,23,42,0.9); color: var(--text); font-size: 0.85rem; outline: none;">
+            <option value="">All Status</option>
+            <option value="2xx">2xx Success</option>
+            <option value="4xx">4xx Client Error</option>
+            <option value="5xx">5xx Server Error</option>
+          </select>
+          <button id="clear-filters" style="padding: 6px 12px; font-size: 0.85rem;">
+            Clear Filters
+          </button>
         </div>
 
         <div id="loader" class="loader" style="display: none;">
@@ -515,9 +606,18 @@
   <script>
     // === CONFIG ==========================================
     const API_URL = "http://localhost:8000/__devtrack__/stats"; // ← adjust to your endpoint
-    let refreshIntervalMs = 10000; // default 10s
+    const TRAFFIC_API_URL = "http://localhost:8000/__devtrack__/metrics/traffic";
+    const ERRORS_API_URL = "http://localhost:8000/__devtrack__/metrics/errors";
+    const PERF_API_URL = "http://localhost:8000/__devtrack__/metrics/perf";
+    const CONSUMERS_API_URL = "http://localhost:8000/__devtrack__/consumers";
+    const MAX_RECORDS_LIMIT = 100000; // High limit to get all records
+    let refreshIntervalMs = 5000; // default 5s
     let refreshTimer = null;
     let latencyChart = null;
+    let trafficChart = null;
+    let errorTrendsChart = null;
+    let perfChart = null;
+    let allEntries = []; // Store all entries for filtering
 
     // === DOM REFS ========================================
     const endpointLabelEl = document.getElementById("endpoint-label");
@@ -540,6 +640,27 @@
     const chartCanvas = document.getElementById("latencyChart");
     const chartContainer = document.getElementById("chart-container");
     const chartEmptyEl = document.getElementById("chart-empty");
+
+    const trafficChartCanvas = document.getElementById("trafficChart");
+    const trafficChartContainer = document.getElementById("traffic-chart-container");
+    const trafficChartEmptyEl = document.getElementById("traffic-chart-empty");
+
+    const errorTrendsChartCanvas = document.getElementById("errorTrendsChart");
+    const errorTrendsChartContainer = document.getElementById("error-trends-chart-container");
+    const errorTrendsChartEmptyEl = document.getElementById("error-trends-chart-empty");
+
+    const perfChartCanvas = document.getElementById("perfChart");
+    const perfChartContainer = document.getElementById("perf-chart-container");
+    const perfChartEmptyEl = document.getElementById("perf-chart-empty");
+
+    const topFailingRoutesContainer = document.getElementById("top-failing-routes-container");
+    const topFailingCountBadge = document.getElementById("top-failing-count-badge");
+    const searchInput = document.getElementById("search-input");
+    const filterMethod = document.getElementById("filter-method");
+    const filterStatus = document.getElementById("filter-status");
+    const clearFiltersBtn = document.getElementById("clear-filters");
+    const consumersContainer = document.getElementById("consumers-container");
+    const consumersCountBadge = document.getElementById("consumers-count-badge");
 
     endpointLabelEl.textContent = API_URL;
 
@@ -845,11 +966,443 @@
       renderChart(data);
 
       const entries = extractEntries(data);
+      allEntries = entries; // Store for filtering
+      
+      // Re-apply filters after data update (preserves filter state)
       if (entries.length) {
-        renderTableFromArray(entries);
+        filterAndRenderTable();
       } else {
         renderFallbackJson(data);
       }
+    }
+
+    // === TRAFFIC OVERVIEW =================================
+    async function fetchAndRenderTraffic() {
+      try {
+        const timestamp = new Date().getTime();
+        const res = await fetch(`${TRAFFIC_API_URL}?hours=24&_t=${timestamp}`, {
+          headers: { 
+            "Accept": "application/json",
+            "Cache-Control": "no-cache, no-store, must-revalidate"
+          },
+          cache: "no-store"
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        renderTrafficChart(data.traffic || []);
+      } catch (err) {
+        console.error("Failed to fetch traffic data:", err);
+      }
+    }
+
+    function renderTrafficChart(trafficData) {
+      if (!trafficData.length) {
+        trafficChartContainer.style.display = "none";
+        trafficChartEmptyEl.style.display = "block";
+        return;
+      }
+
+      trafficChartContainer.style.display = "block";
+      trafficChartEmptyEl.style.display = "none";
+
+      const labels = trafficData.map(d => {
+        const date = new Date(d.timestamp);
+        return date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+      });
+      const counts = trafficData.map(d => d.count);
+
+      const chartData = {
+        labels,
+        datasets: [{
+          label: "Requests",
+          data: counts,
+          borderColor: "#4f46e5",
+          backgroundColor: "rgba(79, 70, 229, 0.1)",
+          tension: 0.3,
+          fill: true,
+          borderWidth: 2,
+          pointRadius: 2
+        }]
+      };
+
+      const config = {
+        type: "line",
+        data: chartData,
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { labels: { color: "#e5e7eb", font: { size: 11 } } }
+          },
+          scales: {
+            x: { ticks: { color: "#9ca3af", maxTicksLimit: 10 }, grid: { color: "rgba(55,65,81,0.4)" } },
+            y: { ticks: { color: "#9ca3af" }, grid: { color: "rgba(31,41,55,0.5)" }, title: { display: true, text: "Requests", color: "#9ca3af" } }
+          }
+        }
+      };
+
+      if (trafficChart) {
+        trafficChart.data = chartData;
+        trafficChart.update();
+      } else {
+        trafficChart = new Chart(trafficChartCanvas, config);
+      }
+    }
+
+    // === ERROR TRENDS =====================================
+    async function fetchAndRenderErrors() {
+      try {
+        const timestamp = new Date().getTime();
+        const res = await fetch(`${ERRORS_API_URL}?hours=24&_t=${timestamp}`, {
+          headers: { 
+            "Accept": "application/json",
+            "Cache-Control": "no-cache, no-store, must-revalidate"
+          },
+          cache: "no-store"
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        renderErrorTrendsChart(data.trends || []);
+        renderTopFailingRoutes(data.top_failing_routes || []);
+      } catch (err) {
+        console.error("Failed to fetch error data:", err);
+      }
+    }
+
+    function renderErrorTrendsChart(trendsData) {
+      if (!trendsData.length) {
+        errorTrendsChartContainer.style.display = "none";
+        errorTrendsChartEmptyEl.style.display = "block";
+        return;
+      }
+
+      errorTrendsChartContainer.style.display = "block";
+      errorTrendsChartEmptyEl.style.display = "none";
+
+      const labels = trendsData.map(d => {
+        const date = new Date(d.timestamp);
+        return date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+      });
+      const errorRates = trendsData.map(d => d.error_rate || 0);
+
+      const chartData = {
+        labels,
+        datasets: [{
+          label: "Error Rate (%)",
+          data: errorRates,
+          borderColor: "#f97373",
+          backgroundColor: "rgba(249, 115, 115, 0.1)",
+          tension: 0.3,
+          fill: true,
+          borderWidth: 2,
+          pointRadius: 2
+        }]
+      };
+
+      const config = {
+        type: "line",
+        data: chartData,
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { labels: { color: "#e5e7eb", font: { size: 11 } } }
+          },
+          scales: {
+            x: { ticks: { color: "#9ca3af", maxTicksLimit: 10 }, grid: { color: "rgba(55,65,81,0.4)" } },
+            y: { ticks: { color: "#9ca3af" }, grid: { color: "rgba(31,41,55,0.5)" }, title: { display: true, text: "Error Rate (%)", color: "#9ca3af" }, min: 0, max: 100 }
+          }
+        }
+      };
+
+      if (errorTrendsChart) {
+        errorTrendsChart.data = chartData;
+        errorTrendsChart.update();
+      } else {
+        errorTrendsChart = new Chart(errorTrendsChartCanvas, config);
+      }
+    }
+
+    function renderTopFailingRoutes(routes) {
+      if (!routes.length) {
+        topFailingRoutesContainer.innerHTML = '<div class="empty-state">No failing routes found.</div>';
+        topFailingCountBadge.textContent = "0 routes";
+        return;
+      }
+
+      const tableHtml = `
+        <div style="overflow: auto; max-height: 200px;">
+          <table>
+            <thead>
+              <tr>
+                <th>Path</th>
+                <th>Method</th>
+                <th>Error Count</th>
+                <th>Error %</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${routes.map(route => `
+                <tr>
+                  <td class="mono">${route.path || "–"}</td>
+                  <td><span class="badge">${route.method || "–"}</span></td>
+                  <td>${formatNumber(route.error_count)}</td>
+                  <td class="kpi-danger">${formatPercent(route.error_percentage)}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+      `;
+      topFailingRoutesContainer.innerHTML = tableHtml;
+      topFailingCountBadge.textContent = `${routes.length} route${routes.length !== 1 ? "s" : ""}`;
+    }
+
+    // === PERFORMANCE METRICS =============================
+    async function fetchAndRenderPerf() {
+      try {
+        const timestamp = new Date().getTime();
+        const res = await fetch(`${PERF_API_URL}?hours=24&_t=${timestamp}`, {
+          headers: { 
+            "Accept": "application/json",
+            "Cache-Control": "no-cache, no-store, must-revalidate"
+          },
+          cache: "no-store"
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        renderPerfChart(data.over_time || []);
+        renderPerfOverall(data.overall || {});
+      } catch (err) {
+        console.error("Failed to fetch performance data:", err);
+      }
+    }
+
+    function renderPerfChart(perfData) {
+      if (!perfData.length) {
+        perfChartContainer.style.display = "none";
+        perfChartEmptyEl.style.display = "block";
+        return;
+      }
+
+      perfChartContainer.style.display = "block";
+      perfChartEmptyEl.style.display = "none";
+
+      const labels = perfData.map(d => {
+        const date = new Date(d.timestamp);
+        return date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+      });
+      const p50Data = perfData.map(d => d.p50);
+      const p95Data = perfData.map(d => d.p95);
+      const p99Data = perfData.map(d => d.p99);
+
+      const chartData = {
+        labels,
+        datasets: [
+          {
+            label: "p50",
+            data: p50Data,
+            borderColor: "#4ade80",
+            backgroundColor: "rgba(74, 222, 128, 0.1)",
+            tension: 0.3,
+            borderWidth: 2,
+            pointRadius: 1
+          },
+          {
+            label: "p95",
+            data: p95Data,
+            borderColor: "#fbbf24",
+            backgroundColor: "rgba(251, 191, 36, 0.1)",
+            tension: 0.3,
+            borderWidth: 2,
+            pointRadius: 1
+          },
+          {
+            label: "p99",
+            data: p99Data,
+            borderColor: "#f97373",
+            backgroundColor: "rgba(249, 115, 115, 0.1)",
+            tension: 0.3,
+            borderWidth: 2,
+            pointRadius: 1
+          }
+        ]
+      };
+
+      const config = {
+        type: "line",
+        data: chartData,
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { labels: { color: "#e5e7eb", font: { size: 11 } } }
+          },
+          scales: {
+            x: { ticks: { color: "#9ca3af", maxTicksLimit: 10 }, grid: { color: "rgba(55,65,81,0.4)" } },
+            y: { ticks: { color: "#9ca3af" }, grid: { color: "rgba(31,41,55,0.5)" }, title: { display: true, text: "Latency (ms)", color: "#9ca3af" } }
+          }
+        }
+      };
+
+      if (perfChart) {
+        perfChart.data = chartData;
+        perfChart.update();
+      } else {
+        perfChart = new Chart(perfChartCanvas, config);
+      }
+    }
+
+    function renderPerfOverall(overall) {
+      document.getElementById("perf-overall-p50").textContent = overall.p50 !== null && overall.p50 !== undefined ? formatMs(overall.p50) : "–";
+      document.getElementById("perf-overall-p95").textContent = overall.p95 !== null && overall.p95 !== undefined ? formatMs(overall.p95) : "–";
+      document.getElementById("perf-overall-p99").textContent = overall.p99 !== null && overall.p99 !== undefined ? formatMs(overall.p99) : "–";
+      document.getElementById("perf-overall-avg").textContent = overall.avg !== null && overall.avg !== undefined ? formatMs(overall.avg) : "–";
+    }
+
+    // === SEARCH & FILTER ==================================
+    function saveFilterState() {
+      // Save filter state to localStorage for persistence across page refreshes
+      const filterState = {
+        search: searchInput.value,
+        method: filterMethod.value,
+        status: filterStatus.value
+      };
+      localStorage.setItem("devtrack_filters", JSON.stringify(filterState));
+    }
+
+    function loadFilterState() {
+      // Load filter state from localStorage
+      try {
+        const saved = localStorage.getItem("devtrack_filters");
+        if (saved) {
+          const filterState = JSON.parse(saved);
+          searchInput.value = filterState.search || "";
+          filterMethod.value = filterState.method || "";
+          filterStatus.value = filterState.status || "";
+        }
+      } catch (e) {
+        // Ignore errors (e.g., localStorage disabled)
+      }
+    }
+
+    function filterAndRenderTable() {
+      const searchTerm = searchInput.value.toLowerCase();
+      const methodFilter = filterMethod.value;
+      const statusFilter = filterStatus.value;
+
+      // Save filter state
+      saveFilterState();
+
+      // If no entries, show empty state
+      if (!allEntries.length) {
+        tableContainerEl.innerHTML = '<div class="empty-state">No records available.</div>';
+        recordCountBadgeEl.textContent = "0 records";
+        return;
+      }
+
+      let filtered = allEntries.filter(entry => {
+        // Search filter
+        if (searchTerm) {
+          const searchableText = JSON.stringify(entry).toLowerCase();
+          if (!searchableText.includes(searchTerm)) return false;
+        }
+
+        // Method filter
+        if (methodFilter && entry.method !== methodFilter) return false;
+
+        // Status filter
+        if (statusFilter) {
+          const status = entry.status_code;
+          if (statusFilter === "2xx" && (status < 200 || status >= 300)) return false;
+          if (statusFilter === "4xx" && (status < 400 || status >= 500)) return false;
+          if (statusFilter === "5xx" && status < 500) return false;
+        }
+
+        return true;
+      });
+
+      renderTableFromArray(filtered);
+    }
+
+    searchInput.addEventListener("input", filterAndRenderTable);
+    filterMethod.addEventListener("change", filterAndRenderTable);
+    filterStatus.addEventListener("change", filterAndRenderTable);
+    clearFiltersBtn.addEventListener("click", () => {
+      searchInput.value = "";
+      filterMethod.value = "";
+      filterStatus.value = "";
+      saveFilterState(); // Clear saved state
+      filterAndRenderTable();
+    });
+
+    // === CONSUMER SEGMENTATION ===========================
+    async function fetchAndRenderConsumers() {
+      try {
+        const timestamp = new Date().getTime();
+        const res = await fetch(`${CONSUMERS_API_URL}?hours=24&_t=${timestamp}`, {
+          headers: { 
+            "Accept": "application/json",
+            "Cache-Control": "no-cache, no-store, must-revalidate"
+          },
+          cache: "no-store"
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        renderConsumers(data);
+      } catch (err) {
+        console.error("Failed to fetch consumer data:", err);
+      }
+    }
+
+    function renderConsumers(data) {
+      if (!data.segments || !data.segments.length) {
+        consumersContainer.innerHTML = '<div class="empty-state">No consumer data available.</div>';
+        consumersCountBadge.textContent = "0 clients";
+        return;
+      }
+
+      const segments = data.segments;
+      consumersCountBadge.textContent = `${data.total_unique_clients || segments.length} client${(data.total_unique_clients || segments.length) !== 1 ? "s" : ""}`;
+
+      const tableHtml = `
+        <div style="overflow: auto; max-height: 300px;">
+          <table>
+            <thead>
+              <tr>
+                <th>Client Hash</th>
+                <th>Public IP</th>
+                <th>Requests</th>
+                <th>Endpoints</th>
+                <th>Avg Latency</th>
+                <th>Error Rate</th>
+                <th>Last Seen</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${segments.map(segment => `
+                <tr>
+                  <td class="mono" style="font-size: 0.7rem; color: var(--accent);">${segment.client_hash || "–"}</td>
+                  <td class="mono" style="font-size: 0.75rem;">${segment.public_ip || "–"}</td>
+                  <td>${formatNumber(segment.request_count)}</td>
+                  <td>${formatNumber(segment.unique_endpoints)}</td>
+                  <td>${segment.avg_latency !== null && segment.avg_latency !== undefined ? formatMs(segment.avg_latency) : "–"}</td>
+                  <td class="${segment.error_rate > 10 ? "kpi-danger" : ""}">${formatPercent(segment.error_rate)}</td>
+                  <td class="mono" style="font-size: 0.7rem;">${segment.last_seen ? new Date(segment.last_seen).toLocaleString() : "–"}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+        ${data.source_breakdown ? `
+          <div style="margin-top: 10px; padding: 8px; background: rgba(15,23,42,0.5); border-radius: 8px; font-size: 0.75rem; color: var(--muted);">
+            <strong>Source Breakdown:</strong> 
+            ${data.source_breakdown.identified ? `${data.source_breakdown.identified.client_count} identified clients` : "0 identified"} | 
+            ${data.source_breakdown.unknown ? `${data.source_breakdown.unknown.client_count} unknown clients` : "0 unknown"}
+          </div>
+        ` : ""}
+      `;
+      consumersContainer.innerHTML = tableHtml;
     }
 
     // === FETCH LOGIC =====================================
@@ -860,9 +1413,14 @@
       setStatus(true, "Fetching…");
 
       try {
-        const res = await fetch(API_URL, {
+        // Fetch main stats - request all records with high limit
+        // Add timestamp to prevent caching
+        const timestamp = new Date().getTime();
+        const res = await fetch(`${API_URL}?limit=${MAX_RECORDS_LIMIT}&_t=${timestamp}`, {
           headers: {
-            "Accept": "application/json"
+            "Accept": "application/json",
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache"
           },
           cache: "no-store"
         });
@@ -872,7 +1430,27 @@
         }
 
         const data = await res.json();
+        
+        // Debug logging
+        const entryCount = data.entries?.length || 0;
+        const totalCount = data.total || data.summary?.total_requests || 0;
+        console.log(`[DevTrack] Fetched ${entryCount} entries, Total in DB: ${totalCount}`);
+        
+        // Check if data actually changed
+        if (entryCount > 0) {
+          const latestEntry = data.entries[0];
+          console.log(`[DevTrack] Latest entry timestamp: ${latestEntry.timestamp}`);
+        }
+        
         renderData(data);
+
+        // Fetch additional metrics
+        await Promise.all([
+          fetchAndRenderTraffic(),
+          fetchAndRenderErrors(),
+          fetchAndRenderPerf(),
+          fetchAndRenderConsumers()
+        ]);
 
         const now = new Date();
         lastUpdatedEl.textContent = formatTime(now);
@@ -916,6 +1494,9 @@
 
     // === INIT ============================================
     (function init() {
+      // Load saved filter state
+      loadFilterState();
+      
       setStatus(true, "Idle · Waiting for first fetch");
       fetchData();        // initial load
       startAutoRefresh(); // start timer

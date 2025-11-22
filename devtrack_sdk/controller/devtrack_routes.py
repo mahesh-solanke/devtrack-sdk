@@ -125,6 +125,58 @@ async def delete_log_by_id(log_id: int):
         raise HTTPException(status_code=500, detail=f"Failed to delete log: {str(e)}")
 
 
+@router.get("/__devtrack__/metrics/traffic", include_in_schema=False)
+async def metrics_traffic(
+    hours: int = Query(24, description="Number of hours to look back"),
+):
+    """Get traffic metrics over time."""
+    db = get_db()
+    try:
+        traffic_data = db.get_traffic_over_time(hours=hours)
+        return {"traffic": traffic_data}
+    except Exception as e:
+        return {"error": f"Failed to retrieve traffic metrics: {str(e)}"}
+
+
+@router.get("/__devtrack__/metrics/errors", include_in_schema=False)
+async def metrics_errors(
+    hours: int = Query(24, description="Number of hours to look back"),
+):
+    """Get error trends and top failing routes."""
+    db = get_db()
+    try:
+        error_data = db.get_error_trends(hours=hours)
+        return error_data
+    except Exception as e:
+        return {"error": f"Failed to retrieve error metrics: {str(e)}"}
+
+
+@router.get("/__devtrack__/metrics/perf", include_in_schema=False)
+async def metrics_perf(
+    hours: int = Query(24, description="Number of hours to look back"),
+):
+    """Get performance metrics (p50/p95/p99 latency)."""
+    db = get_db()
+    try:
+        perf_data = db.get_performance_metrics(hours=hours)
+        return perf_data
+    except Exception as e:
+        return {"error": f"Failed to retrieve performance metrics: {str(e)}"}
+
+
+@router.get("/__devtrack__/consumers", include_in_schema=False)
+async def consumers(
+    hours: int = Query(24, description="Number of hours to look back"),
+):
+    """Get consumer segmentation data."""
+    db = get_db()
+    try:
+        segments_data = db.get_consumer_segments(hours=hours)
+        return segments_data
+    except Exception as e:
+        return {"error": f"Failed to retrieve consumer segments: {str(e)}"}
+
+
 @router.get(
     "/__devtrack__/dashboard", include_in_schema=False, response_class=HTMLResponse
 )
@@ -146,6 +198,33 @@ async def dashboard(request: Request):
         html_content = html_content.replace(
             'const API_URL = "http://localhost:8000/__devtrack__/stats";',
             f'const API_URL = "{api_url}";',
+        )
+
+        # Replace metrics API URLs
+        traffic_url_old = (
+            "const TRAFFIC_API_URL = "
+            '"http://localhost:8000/__devtrack__/metrics/traffic";'
+        )
+        traffic_url_new = (
+            f'const TRAFFIC_API_URL = "{base_url}/__devtrack__/metrics/traffic";'
+        )
+        html_content = html_content.replace(traffic_url_old, traffic_url_new)
+
+        errors_url_old = (
+            "const ERRORS_API_URL = "
+            '"http://localhost:8000/__devtrack__/metrics/errors";'
+        )
+        errors_url_new = (
+            f'const ERRORS_API_URL = "{base_url}/__devtrack__/metrics/errors";'
+        )
+        html_content = html_content.replace(errors_url_old, errors_url_new)
+        html_content = html_content.replace(
+            'const PERF_API_URL = "http://localhost:8000/__devtrack__/metrics/perf";',
+            f'const PERF_API_URL = "{base_url}/__devtrack__/metrics/perf";',
+        )
+        html_content = html_content.replace(
+            'const CONSUMERS_API_URL = "http://localhost:8000/__devtrack__/consumers";',
+            f'const CONSUMERS_API_URL = "{base_url}/__devtrack__/consumers";',
         )
 
         return HTMLResponse(content=html_content)
