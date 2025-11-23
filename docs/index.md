@@ -1,6 +1,8 @@
-<div align="center"> 🚀 DevTrack SDK</div>
-<br>
+<div align="center">
 
+![DevTrack SDK Logo](_static/devtrack-logo.png)
+
+</div>
 <div align="center">
 
 **Comprehensive request tracking and analytics toolkit for FastAPI and Django applications**
