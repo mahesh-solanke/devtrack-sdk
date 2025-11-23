@@ -542,7 +542,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - **GitHub Issues**: [https://github.com/mahesh-solanke/devtrack-sdk/issues](https://github.com/mahesh-solanke/devtrack-sdk/issues)
 - **GitHub Discussions**: [https://github.com/mahesh-solanke/devtrack-sdk/discussions](https://github.com/mahesh-solanke/devtrack-sdk/discussions)
-- **Email**: [Contact me](maheshsolanke69@gmail.com)
+- **Email**: [Contact me](https://linkedin.com/in/mahesh-solanke-200697)
 
 ---
 
