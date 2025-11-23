@@ -1,6 +1,6 @@
 <div align="center">
 
-![DevTrack SDK Logo](_static/devtrack-logo.png)
+![DevTrack SDK Logo](../static/devtrack-logo.png)
 
 </div>
 <div align="center">

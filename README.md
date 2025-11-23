@@ -1,5 +1,8 @@
-<div align="center"> 🚀 DevTrack SDK </div>
-<br>
+<div align="center">
+
+![DevTrack SDK Logo](static/devtrack-logo.png)
+
+</div>
 <div align="center">
 
 [![Status](https://img.shields.io/badge/status-active-success.svg)]()
