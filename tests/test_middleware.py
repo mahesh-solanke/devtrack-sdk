@@ -11,8 +11,12 @@ from devtrack_sdk.middleware.base import DevTrackMiddleware
 
 def clear_db_logs():
     """Clear all logs from the database for testing."""
-    db = get_db()
-    db.delete_all_logs()
+    try:
+        db = get_db()
+        db.delete_all_logs()
+    except Exception:
+        # Database might be closed, ignore
+        pass
 
 
 @pytest.fixture

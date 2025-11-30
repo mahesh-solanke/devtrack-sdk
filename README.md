@@ -6,7 +6,7 @@
 <div align="center">
 
 [![Status](https://img.shields.io/badge/status-active-success.svg)]()
-[![Version](https://img.shields.io/badge/version-0.3.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-0.4.0-blue.svg)]()
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](/LICENSE)
 [![PyPI Downloads](https://static.pepy.tech/badge/devtrack-sdk)](https://pepy.tech/projects/devtrack-sdk)

@@ -1,6 +1,6 @@
 # DevTrack SDK Examples
 
-This directory contains example applications demonstrating DevTrack SDK v0.3.0 integration with different frameworks.
+This directory contains example applications demonstrating DevTrack SDK v0.4.0 integration with different frameworks.
 
 ## Available Examples
 

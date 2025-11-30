@@ -85,7 +85,7 @@ function App() {
               <div className="flex items-baseline gap-2">
                 <h1 className="text-3xl font-semibold">API Health Dashboard</h1>
                 <span className="text-xs px-2 py-1 rounded-full bg-indigo-500/20 text-indigo-400 border border-indigo-500/40">
-                  Auto-refresh
+                  {refreshInterval === 0 ? "Manual refresh" : "Auto-refresh"}
                 </span>
               </div>
               <p className="text-sm text-gray-400 mt-1">
