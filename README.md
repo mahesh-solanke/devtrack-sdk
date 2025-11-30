@@ -48,6 +48,7 @@
 ### ✨ Core Features
 - **Zero Configuration**: Works out of the box with sensible defaults
 - **Dual Framework Support**: FastAPI and Django middleware
+- **Real-Time Dashboard**: Interactive dashboard at `/__devtrack__/dashboard` with live metrics
 - **Advanced Querying**: Filter and search logs with multiple criteria
 - **Export Capabilities**: Export logs to JSON or CSV formats
 - **Health Monitoring**: System health checks and component status
@@ -109,7 +110,15 @@ urlpatterns = [
 devtrack init --force
 ```
 
-### 4. Start Monitoring
+### 4. Access Dashboard
+Once your app is running, visit:
+```
+http://localhost:8000/__devtrack__/dashboard
+```
+
+The dashboard provides real-time insights into your API performance with interactive charts and metrics.
+
+### 5. Start Monitoring (Optional)
 ```bash
 devtrack monitor --interval 3
 ```
@@ -318,6 +327,19 @@ DevTrack SDK provides comprehensive database management through:
 
 ## 📊 API Endpoints
 
+### GET /__devtrack__/dashboard
+Serves the built-in real-time dashboard with interactive charts and metrics.
+
+**Features:**
+- Traffic overview with time-series charts
+- Error trends and top failing routes
+- Performance metrics (p50/p95/p99 latency)
+- Consumer segmentation analysis
+- Searchable request logs table
+- Auto-refresh functionality
+
+**Access:** Visit `http://localhost:8000/__devtrack__/dashboard` after starting your application.
+
 ### GET /__devtrack__/stats
 Returns comprehensive statistics and logs from the database.
 
@@ -350,6 +372,38 @@ Delete a specific log by its ID.
     "log_id": 123
 }
 ```
+
+### GET /__devtrack__/metrics/traffic
+Get traffic metrics over time.
+
+**Query Parameters:**
+- `hours` (int, default: 24): Number of hours to look back
+
+**Response:** Returns traffic counts grouped by time intervals.
+
+### GET /__devtrack__/metrics/errors
+Get error trends and top failing routes.
+
+**Query Parameters:**
+- `hours` (int, default: 24): Number of hours to look back
+
+**Response:** Returns error trends over time and top failing routes.
+
+### GET /__devtrack__/metrics/perf
+Get performance metrics (p50/p95/p99 latency).
+
+**Query Parameters:**
+- `hours` (int, default: 24): Number of hours to look back
+
+**Response:** Returns latency percentiles over time and overall statistics.
+
+### GET /__devtrack__/consumers
+Get consumer segmentation data.
+
+**Query Parameters:**
+- `hours` (int, default: 24): Number of hours to look back
+
+**Response:** Returns consumer segments with request counts, error rates, and latency metrics.
 
 For detailed API documentation, see the [documentation](https://github.com/mahesh-solanke/devtrack-sdk/tree/main/docs).
 
