@@ -26,6 +26,18 @@ class DevTrackDB:
         """Get thread-local database connection."""
         if not hasattr(_thread_local, "connection") or _thread_local.connection is None:
             _thread_local.connection = duckdb.connect(self.db_path)
+        else:
+            # Check if connection is closed and reconnect if needed
+            try:
+                # Try a simple query to check if connection is alive
+                _thread_local.connection.execute("SELECT 1")
+            except Exception:
+                # Connection is closed, create a new one
+                try:
+                    _thread_local.connection.close()
+                except Exception:
+                    pass
+                _thread_local.connection = duckdb.connect(self.db_path)
         return _thread_local.connection
 
     def _create_tables(self):
@@ -159,8 +171,42 @@ class DevTrackDB:
         if limit:
             sql += f" LIMIT {limit} OFFSET {offset}"
 
-        result = self.conn.execute(sql).fetchall()
-        columns = [desc[0] for desc in self.conn.description]
+        # Execute query to get description first, then fetch results
+        cursor = self.conn.execute(sql)
+        # Get column names from description
+        try:
+            columns = (
+                [desc[0] for desc in cursor.description] if cursor.description else None
+            )
+        except Exception:
+            columns = None
+
+        # If we couldn't get columns from description, use known column names
+        if not columns or (len(columns) == 1 and columns[0] in ["1", "NUMBER"]):
+            columns = [
+                "id",
+                "path",
+                "path_pattern",
+                "method",
+                "status_code",
+                "timestamp",
+                "client_ip",
+                "duration_ms",
+                "user_agent",
+                "referer",
+                "query_params",
+                "path_params",
+                "request_body",
+                "response_size",
+                "user_id",
+                "role",
+                "trace_id",
+                "client_identifier",
+                "created_at",
+            ]
+
+        # Fetch all results
+        result = cursor.fetchall()
 
         logs = []
         for row in result:
