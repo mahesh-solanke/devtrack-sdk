@@ -1,9 +1,12 @@
-<div align="center"> 🚀 DevTrack SDK </div>
-<br>
+<div align="center">
+
+![DevTrack SDK Logo](static/devtrack-logo.png)
+
+</div>
 <div align="center">
 
 [![Status](https://img.shields.io/badge/status-active-success.svg)]()
-[![Version](https://img.shields.io/badge/version-0.3.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-0.4.0-blue.svg)]()
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](/LICENSE)
 [![PyPI Downloads](https://static.pepy.tech/badge/devtrack-sdk)](https://pepy.tech/projects/devtrack-sdk)
@@ -539,7 +542,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - **GitHub Issues**: [https://github.com/mahesh-solanke/devtrack-sdk/issues](https://github.com/mahesh-solanke/devtrack-sdk/issues)
 - **GitHub Discussions**: [https://github.com/mahesh-solanke/devtrack-sdk/discussions](https://github.com/mahesh-solanke/devtrack-sdk/discussions)
-- **Email**: [Contact me](maheshsolanke69@gmail.com)
+- **LinkedIn Company**: [DevTrackHQ](https://www.linkedin.com/company/devtrackhq/)
+- **Email**: [Contact me](https://linkedin.com/in/mahesh-solanke-200697)
 
 ---
 
@@ -549,5 +553,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 [![GitHub](https://img.shields.io/badge/GitHub-100000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/mahesh-solanke)
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://linkedin.com/in/mahesh-solanke-200697)
+[![DevTrackHQ](https://img.shields.io/badge/DevTrackHQ-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/company/devtrackhq/)
 
 </div>

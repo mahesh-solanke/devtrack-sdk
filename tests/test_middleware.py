@@ -11,14 +11,20 @@ from devtrack_sdk.middleware.base import DevTrackMiddleware
 
 def clear_db_logs():
     """Clear all logs from the database for testing."""
-    db = get_db()
-    db.delete_all_logs()
+    try:
+        db = get_db()
+        db.delete_all_logs()
+    except Exception:
+        # Database might be closed, ignore
+        pass
 
 
 @pytest.fixture
 def app_with_middleware():
     # Create a unique temporary database for testing
     import uuid
+
+    from devtrack_sdk.database import _thread_local
 
     db_path = f"/tmp/test_devtrack_{uuid.uuid4().hex}.db"
 
@@ -52,10 +58,19 @@ def app_with_middleware():
 
     yield app
 
-    # Cleanup
+    # Cleanup - close thread-local connections
     try:
-        db = get_db()
-        db.close()
+        # Clear thread-local connection
+        if (
+            hasattr(_thread_local, "connection")
+            and _thread_local.connection is not None
+        ):
+            try:
+                _thread_local.connection.close()
+            except Exception:
+                pass
+            _thread_local.connection = None
+
         if os.path.exists(db_path):
             os.unlink(db_path)
     except Exception:

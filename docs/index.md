@@ -1,13 +1,15 @@
-<div align="center"> 🚀 DevTrack SDK</div>
-<br>
+<div align="center">
 
+![DevTrack SDK Logo](../static/devtrack-logo.png)
+
+</div>
 <div align="center">
 
 **Comprehensive request tracking and analytics toolkit for FastAPI and Django applications**
 
 *Built for developers who care about API usage, performance, and observability*
 
-[![Version](https://img.shields.io/badge/version-0.3.0-blue.svg)](https://github.com/mahesh-solanke/devtrack-sdk)
+[![Version](https://img.shields.io/badge/version-0.4.0-blue.svg)](https://github.com/mahesh-solanke/devtrack-sdk)
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/mahesh-solanke/devtrack-sdk/blob/main/LICENSE)
 [![PyPI Downloads](https://static.pepy.tech/badge/devtrack-sdk)](https://pepy.tech/projects/devtrack-sdk)

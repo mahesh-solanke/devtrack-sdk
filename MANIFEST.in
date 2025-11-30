@@ -1,0 +1,9 @@
+# Include the built React dashboard
+recursive-include devtrack_sdk/dashboard/dist *
+recursive-include devtrack_sdk/dashboard/index.html
+
+# Include package metadata
+include README.md
+include LICENSE
+include pyproject.toml
+

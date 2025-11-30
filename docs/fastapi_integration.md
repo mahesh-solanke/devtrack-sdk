@@ -1,6 +1,6 @@
 # FastAPI Integration Guide
 
-This guide shows you how to integrate DevTrack SDK v0.3.0 with your FastAPI application for comprehensive request tracking and analytics using DuckDB for persistent storage.
+This guide shows you how to integrate DevTrack SDK v0.4.0 with your FastAPI application for comprehensive request tracking and analytics using DuckDB for persistent storage.
 
 ## Quick Start
 

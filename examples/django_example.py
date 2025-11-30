@@ -1,5 +1,5 @@
 """
-Django example with DevTrack SDK v0.3.0 DuckDB integration
+Django example with DevTrack SDK v0.4.0 DuckDB integration
 """
 
 import os
@@ -74,8 +74,8 @@ def home_view(request):
     """Home page view"""
     return JsonResponse(
         {
-            "message": "Welcome to Django DevTrack SDK v0.3.0 Example!",
-            "version": "0.3.0",
+            "message": "Welcome to Django DevTrack SDK v0.4.0 Example!",
+            "version": "0.4.0",
             "features": [
                 "DuckDB persistent storage",
                 "Real-time monitoring",
@@ -136,7 +136,7 @@ def posts_view(request):
         },
         {
             "id": 2,
-            "title": "Django DevTrack v0.3.0",
+            "title": "Django DevTrack v0.4.0",
             "content": "Using DevTrack with Django and DuckDB",
             "author": "Jane Smith",
         },
@@ -162,7 +162,7 @@ def error_view(request):
     """Error view for testing error tracking"""
     return JsonResponse(
         {
-            "error": "This is a test error for DevTrack v0.3.0",
+            "error": "This is a test error for DevTrack v0.4.0",
             "status": "error",
             "code": "TEST_ERROR",
             "message": "This endpoint intentionally returns an error\
@@ -191,7 +191,7 @@ def health_view(request):
     return JsonResponse(
         {
             "status": "healthy",
-            "version": "0.3.0",
+            "version": "0.4.0",
             "database": "DuckDB",
             "middleware": "DevTrackDjangoMiddleware",
             "timestamp": "2024-01-01T00:00:00Z",
@@ -215,9 +215,9 @@ urlpatterns = [
 application = get_wsgi_application()
 
 if __name__ == "__main__":
-    print("🚀 Starting Django DevTrack SDK v0.3.0 Example...")
+    print("🚀 Starting Django DevTrack SDK v0.4.0 Example...")
     print("=" * 60)
-    print("📊 DevTrack v0.3.0 Features:")
+    print("📊 DevTrack v0.4.0 Features:")
     print("   ✅ DuckDB persistent storage")
     print("   ✅ Real-time monitoring")
     print("   ✅ Advanced querying")

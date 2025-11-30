@@ -2,7 +2,7 @@
 
 ## 🎉 Release Date
 **Version**: 0.3.0  
-**Release Date**: 2025-11-02
+**Release Date**: 2025-11-30
 
 ---
 

@@ -1,8 +1,12 @@
 import json
+import threading
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import duckdb
+
+# Thread-local storage for database connections
+_thread_local = threading.local()
 
 
 class DevTrackDB:
@@ -11,8 +15,30 @@ class DevTrackDB:
     def __init__(self, db_path: str = "devtrack_logs.db"):
         """Initialize the database connection and create tables if they don't exist."""
         self.db_path = db_path
-        self.conn = duckdb.connect(db_path)
+        self._lock = threading.Lock()
+        # Create initial connection for table creation
+        self._init_conn = duckdb.connect(db_path)
         self._create_tables()
+        self._init_conn.close()
+
+    @property
+    def conn(self):
+        """Get thread-local database connection."""
+        if not hasattr(_thread_local, "connection") or _thread_local.connection is None:
+            _thread_local.connection = duckdb.connect(self.db_path)
+        else:
+            # Check if connection is closed and reconnect if needed
+            try:
+                # Try a simple query to check if connection is alive
+                _thread_local.connection.execute("SELECT 1")
+            except Exception:
+                # Connection is closed, create a new one
+                try:
+                    _thread_local.connection.close()
+                except Exception:
+                    pass
+                _thread_local.connection = duckdb.connect(self.db_path)
+        return _thread_local.connection
 
     def _create_tables(self):
         """Create the logs table if it doesn't exist."""
@@ -37,11 +63,27 @@ class DevTrackDB:
             user_id VARCHAR,
             role VARCHAR,
             trace_id VARCHAR,
+            client_identifier VARCHAR,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """
-        self.conn.execute("CREATE SEQUENCE IF NOT EXISTS seq_log_id START 1")
-        self.conn.execute(create_table_sql)
+        self._init_conn.execute("CREATE SEQUENCE IF NOT EXISTS seq_log_id START 1")
+        self._init_conn.execute(create_table_sql)
+
+        # Migration: Rename client_identifier_hash to client_identifier
+        try:
+            self._init_conn.execute(
+                "ALTER TABLE request_logs RENAME COLUMN "
+                "client_identifier_hash TO client_identifier"
+            )
+        except Exception:
+            # Column might not exist or already renamed, try adding client_identifier
+            try:
+                self._init_conn.execute(
+                    "ALTER TABLE request_logs ADD COLUMN client_identifier VARCHAR"
+                )
+            except Exception:
+                pass  # Column already exists
 
     def insert_log(self, log_data: Dict[str, Any]) -> int:
         """Insert a log entry into the database."""
@@ -57,8 +99,8 @@ class DevTrackDB:
         INSERT INTO request_logs (
             path, path_pattern, method, status_code, timestamp, client_ip,
             duration_ms, user_agent, referer, query_params, path_params,
-            request_body, response_size, user_id, role, trace_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            request_body, response_size, user_id, role, trace_id, client_identifier
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
 
         result = self.conn.execute(
@@ -80,14 +122,46 @@ class DevTrackDB:
                 log_data.get("user_id"),
                 log_data.get("role"),
                 log_data.get("trace_id"),
+                log_data.get("client_identifier")
+                or log_data.get("client_identifier_hash"),
             ),
         )
 
         # Get the ID of the last inserted row
+        # Note: DuckDB auto-commits transactions
         result = self.conn.execute(
             "SELECT id FROM request_logs ORDER BY id DESC LIMIT 1"
         ).fetchone()
         return result[0] if result else None
+
+    def _safe_json_loads(self, value: Any, default: Any = None) -> Any:
+        """Safely parse JSON string, returning default on error."""
+        if value is None:
+            return default if default is not None else {}
+        if isinstance(value, dict):
+            return value
+        if isinstance(value, str):
+            if not value.strip():
+                return default if default is not None else {}
+            try:
+                return json.loads(value)
+            except (json.JSONDecodeError, TypeError):
+                return default if default is not None else {}
+        return default if default is not None else {}
+
+    def _format_log_dict(self, log_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """Format a log dictionary by parsing JSON fields and formatting timestamp."""
+        # Convert JSON strings back to dicts (handle empty/invalid JSON)
+        log_dict["query_params"] = self._safe_json_loads(log_dict.get("query_params"))
+        log_dict["path_params"] = self._safe_json_loads(log_dict.get("path_params"))
+        log_dict["request_body"] = self._safe_json_loads(log_dict.get("request_body"))
+        # Convert timestamp back to ISO format
+        if log_dict.get("timestamp"):
+            if hasattr(log_dict["timestamp"], "isoformat"):
+                log_dict["timestamp"] = log_dict["timestamp"].isoformat()
+            else:
+                log_dict["timestamp"] = str(log_dict["timestamp"])
+        return log_dict
 
     def get_all_logs(
         self, limit: Optional[int] = None, offset: int = 0
@@ -97,18 +171,47 @@ class DevTrackDB:
         if limit:
             sql += f" LIMIT {limit} OFFSET {offset}"
 
-        result = self.conn.execute(sql).fetchall()
-        columns = [desc[0] for desc in self.conn.description]
+        # Execute query to get description first, then fetch results
+        cursor = self.conn.execute(sql)
+        # Get column names from description
+        try:
+            columns = (
+                [desc[0] for desc in cursor.description] if cursor.description else None
+            )
+        except Exception:
+            columns = None
+
+        # If we couldn't get columns from description, use known column names
+        if not columns or (len(columns) == 1 and columns[0] in ["1", "NUMBER"]):
+            columns = [
+                "id",
+                "path",
+                "path_pattern",
+                "method",
+                "status_code",
+                "timestamp",
+                "client_ip",
+                "duration_ms",
+                "user_agent",
+                "referer",
+                "query_params",
+                "path_params",
+                "request_body",
+                "response_size",
+                "user_id",
+                "role",
+                "trace_id",
+                "client_identifier",
+                "created_at",
+            ]
+
+        # Fetch all results
+        result = cursor.fetchall()
 
         logs = []
         for row in result:
             log_dict = dict(zip(columns, row))
-            # Convert JSON strings back to dicts
-            log_dict["query_params"] = json.loads(log_dict["query_params"])
-            log_dict["path_params"] = json.loads(log_dict["path_params"])
-            log_dict["request_body"] = json.loads(log_dict["request_body"])
-            # Convert timestamp back to ISO format
-            log_dict["timestamp"] = log_dict["timestamp"].isoformat()
+            log_dict = self._format_log_dict(log_dict)
             logs.append(log_dict)
 
         return logs
@@ -134,12 +237,7 @@ class DevTrackDB:
         logs = []
         for row in result:
             log_dict = dict(zip(columns, row))
-            # Convert JSON strings back to dicts
-            log_dict["query_params"] = json.loads(log_dict["query_params"])
-            log_dict["path_params"] = json.loads(log_dict["path_params"])
-            log_dict["request_body"] = json.loads(log_dict["request_body"])
-            # Convert timestamp back to ISO format
-            log_dict["timestamp"] = log_dict["timestamp"].isoformat()
+            log_dict = self._format_log_dict(log_dict)
             logs.append(log_dict)
 
         return logs
@@ -160,12 +258,7 @@ class DevTrackDB:
         logs = []
         for row in result:
             log_dict = dict(zip(columns, row))
-            # Convert JSON strings back to dicts
-            log_dict["query_params"] = json.loads(log_dict["query_params"])
-            log_dict["path_params"] = json.loads(log_dict["path_params"])
-            log_dict["request_body"] = json.loads(log_dict["request_body"])
-            # Convert timestamp back to ISO format
-            log_dict["timestamp"] = log_dict["timestamp"].isoformat()
+            log_dict = self._format_log_dict(log_dict)
             logs.append(log_dict)
 
         return logs
@@ -298,6 +391,358 @@ class DevTrackDB:
         )
 
         return count_before
+
+    def get_traffic_over_time(
+        self, hours: int = 24, interval_minutes: int = 5
+    ) -> List[Dict[str, Any]]:
+        """Get traffic counts grouped by time intervals."""
+        sql = f"""
+        SELECT
+            date_trunc('minute', timestamp) as time_bucket,
+            COUNT(*) as request_count
+        FROM request_logs
+        WHERE timestamp >= CURRENT_TIMESTAMP - INTERVAL '{hours} hours'
+        GROUP BY date_trunc('minute', timestamp)
+        ORDER BY time_bucket ASC
+        """
+        result = self.conn.execute(sql).fetchall()
+        return [
+            {
+                "time_bucket": (
+                    row[0].isoformat() if hasattr(row[0], "isoformat") else str(row[0])
+                ),
+                "request_count": row[1],
+            }
+            for row in result
+        ]
+
+    def get_error_trends(
+        self, hours: int = 24, interval_minutes: int = 5
+    ) -> Dict[str, Any]:
+        """Get error trends including failure rates over time and top failing routes."""
+        # Error rates over time
+        sql = f"""
+        SELECT
+            date_trunc('minute', timestamp) as time_bucket,
+            COUNT(*) as total_requests,
+            COUNT(CASE WHEN status_code >= 400 THEN 1 END) as error_count
+        FROM request_logs
+        WHERE timestamp >= CURRENT_TIMESTAMP - INTERVAL '{hours} hours'
+        GROUP BY date_trunc('minute', timestamp)
+        ORDER BY time_bucket ASC
+        """
+        result = self.conn.execute(sql).fetchall()
+        error_trends = [
+            {
+                "time_bucket": (
+                    row[0].isoformat() if hasattr(row[0], "isoformat") else str(row[0])
+                ),
+                "total_requests": row[1],
+                "error_count": row[2],
+                "error_rate": (row[2] / row[1] * 100) if row[1] > 0 else 0,
+            }
+            for row in result
+        ]
+
+        # Top failing routes
+        total_errors = self.conn.execute(
+            "SELECT COUNT(*) FROM request_logs WHERE status_code >= 400"
+        ).fetchone()[0]
+
+        top_failing_sql = """
+        SELECT
+            path_pattern,
+            method,
+            COUNT(*) as error_count
+        FROM request_logs
+        WHERE status_code >= 400
+        GROUP BY path_pattern, method
+        ORDER BY error_count DESC
+        LIMIT 10
+        """
+        top_failing_result = self.conn.execute(top_failing_sql).fetchall()
+        top_failing_routes = [
+            {
+                "route": f"{row[1]} {row[0]}" if row[0] else "-",
+                "error_count": row[2],
+                "error_rate": (
+                    round((row[2] / total_errors * 100), 2) if total_errors > 0 else 0
+                ),
+            }
+            for row in top_failing_result
+        ]
+
+        return {
+            "error_trends": error_trends,
+            "top_failing_routes": top_failing_routes,
+        }
+
+    def get_performance_metrics(
+        self, hours: int = 24, interval_minutes: int = 5
+    ) -> Dict[str, Any]:
+        """Get performance metrics including p50, p95, p99 latency over time."""
+        import statistics
+
+        # Get all duration_ms values grouped by time bucket
+        sql = f"""
+        SELECT
+            date_trunc('minute', timestamp) as time_bucket,
+            duration_ms
+        FROM request_logs
+        WHERE timestamp >= CURRENT_TIMESTAMP - INTERVAL '{hours} hours'
+            AND duration_ms IS NOT NULL
+        ORDER BY time_bucket ASC, duration_ms ASC
+        """
+        result = self.conn.execute(sql).fetchall()
+
+        # Group by time bucket and calculate percentiles
+        from collections import defaultdict
+
+        time_buckets = defaultdict(list)
+        for row in result:
+            time_bucket = (
+                row[0].isoformat() if hasattr(row[0], "isoformat") else str(row[0])
+            )
+            duration = row[1]
+            if duration is not None:
+                time_buckets[time_bucket].append(float(duration))
+
+        # Calculate percentiles for each time bucket
+        performance_metrics = []
+        for time_bucket, durations in sorted(time_buckets.items()):
+            if durations:
+                sorted_durations = sorted(durations)
+                n = len(sorted_durations)
+                p50_idx = int(n * 0.50)
+                p95_idx = int(n * 0.95)
+                p99_idx = int(n * 0.99)
+
+                performance_metrics.append(
+                    {
+                        "time_bucket": time_bucket,
+                        "p50": round(
+                            (
+                                sorted_durations[p50_idx]
+                                if p50_idx < n
+                                else sorted_durations[-1]
+                            ),
+                            2,
+                        ),
+                        "p95": round(
+                            (
+                                sorted_durations[p95_idx]
+                                if p95_idx < n
+                                else sorted_durations[-1]
+                            ),
+                            2,
+                        ),
+                        "p99": round(
+                            (
+                                sorted_durations[p99_idx]
+                                if p99_idx < n
+                                else sorted_durations[-1]
+                            ),
+                            2,
+                        ),
+                        "avg": round(statistics.mean(durations), 2),
+                    }
+                )
+
+        # Overall percentiles
+        overall_sql = f"""
+        SELECT duration_ms
+        FROM request_logs
+        WHERE timestamp >= CURRENT_TIMESTAMP - INTERVAL '{hours} hours'
+            AND duration_ms IS NOT NULL
+        ORDER BY duration_ms ASC
+        """
+        overall_result = self.conn.execute(overall_sql).fetchall()
+        overall_durations = [
+            float(row[0]) for row in overall_result if row[0] is not None
+        ]
+
+        overall_metrics = {}
+        if overall_durations:
+            sorted_overall = sorted(overall_durations)
+            n = len(sorted_overall)
+            p50_idx = int(n * 0.50)
+            p95_idx = int(n * 0.95)
+            p99_idx = int(n * 0.99)
+
+            overall_metrics = {
+                "p50": round(
+                    sorted_overall[p50_idx] if p50_idx < n else sorted_overall[-1], 2
+                ),
+                "p95": round(
+                    sorted_overall[p95_idx] if p95_idx < n else sorted_overall[-1], 2
+                ),
+                "p99": round(
+                    sorted_overall[p99_idx] if p99_idx < n else sorted_overall[-1], 2
+                ),
+                "avg": round(statistics.mean(overall_durations), 2),
+            }
+        else:
+            overall_metrics = {
+                "p50": None,
+                "p95": None,
+                "p99": None,
+                "avg": None,
+            }
+
+        return {
+            "latency_over_time": performance_metrics,
+            "overall_stats": overall_metrics,
+        }
+
+    def get_consumer_segments(self, hours: int = 24) -> Dict[str, Any]:
+        """Get consumer segmentation data grouped by client identifier."""
+        # Get unique clients and their stats, including most recent IP
+        sql = f"""
+        SELECT
+            client_identifier,
+            COUNT(*) as request_count,
+            COUNT(DISTINCT path_pattern) as unique_endpoints,
+            AVG(duration_ms) as avg_latency,
+            COUNT(CASE WHEN status_code >= 400 THEN 1 END) as error_count,
+            MIN(timestamp) as first_seen,
+            MAX(timestamp) as last_seen,
+            (SELECT client_ip FROM request_logs r2
+             WHERE r2.client_identifier = request_logs.client_identifier
+             AND r2.timestamp >= CURRENT_TIMESTAMP - INTERVAL '{hours} hours'
+             ORDER BY r2.timestamp DESC LIMIT 1) as latest_ip
+        FROM request_logs
+        WHERE timestamp >= CURRENT_TIMESTAMP - INTERVAL '{hours} hours'
+            AND client_identifier IS NOT NULL
+        GROUP BY client_identifier
+        ORDER BY request_count DESC
+        LIMIT 50
+        """
+        result = self.conn.execute(sql).fetchall()
+
+        segments = []
+        for row in result:
+            segments.append(
+                {
+                    # Original client identifier (kept key name for API compatibility)
+                    "client_identifier_hash": row[0],
+                    "client_identifier": row[0],  # Also include as client_identifier
+                    "request_count": row[1],
+                    "unique_endpoints": row[2],
+                    "avg_latency_ms": round(row[3], 2) if row[3] is not None else None,
+                    "error_count": row[4],
+                    "error_rate": (
+                        round((row[4] / row[1] * 100), 2) if row[1] > 0 else 0
+                    ),
+                    "first_seen": (
+                        row[5].isoformat()
+                        if hasattr(row[5], "isoformat")
+                        else str(row[5])
+                    ),
+                    "last_seen": (
+                        row[6].isoformat()
+                        if hasattr(row[6], "isoformat")
+                        else str(row[6])
+                    ),
+                    "latest_ip": row[7] if row[7] and row[7] != "unknown" else None,
+                }
+            )
+
+        # Get total unique clients
+        total_clients_sql = f"""
+        SELECT COUNT(DISTINCT client_identifier)
+        FROM request_logs
+        WHERE timestamp >= CURRENT_TIMESTAMP - INTERVAL '{hours} hours'
+            AND client_identifier IS NOT NULL
+        """
+        total_clients = self.conn.execute(total_clients_sql).fetchone()[0] or 0
+
+        # Get client identification source breakdown
+        source_sql = f"""
+        SELECT
+            CASE
+                WHEN client_identifier IS NULL THEN 'unknown'
+                ELSE 'identified'
+            END as source_type,
+            COUNT(DISTINCT client_identifier) as client_count,
+            COUNT(*) as request_count
+        FROM request_logs
+        WHERE timestamp >= CURRENT_TIMESTAMP - INTERVAL '{hours} hours'
+        GROUP BY source_type
+        """
+        source_result = self.conn.execute(source_sql).fetchall()
+        source_breakdown = {
+            row[0]: {
+                "client_count": row[1],
+                "request_count": row[2],
+            }
+            for row in source_result
+        }
+
+        return {
+            "segments": segments,
+            "total_unique_clients": total_clients,
+            "source_breakdown": source_breakdown,
+        }
+
+    def get_client_metrics(self, client_hash: str, hours: int = 24) -> Dict[str, Any]:
+        """Get detailed metrics for a specific client."""
+        sql = f"""
+        SELECT
+            COUNT(*) as request_count,
+            COUNT(DISTINCT path_pattern) as unique_endpoints,
+            AVG(duration_ms) as avg_latency,
+            MIN(duration_ms) as min_latency,
+            MAX(duration_ms) as max_latency,
+            COUNT(CASE WHEN status_code >= 400 THEN 1 END) as error_count,
+            COUNT(CASE WHEN status_code >= 200 AND status_code < 300
+                THEN 1 END) as success_count
+        FROM request_logs
+        WHERE client_identifier = ?
+            AND timestamp >= CURRENT_TIMESTAMP - INTERVAL '{hours} hours'
+        """
+        result = self.conn.execute(sql, (client_hash,)).fetchone()
+
+        if not result or result[0] == 0:
+            return {"error": "Client not found or no data"}
+
+        return {
+            "client_hash": client_hash,
+            "request_count": result[0],
+            "unique_endpoints": result[1],
+            "avg_latency": round(result[2], 2) if result[2] is not None else None,
+            "min_latency": round(result[3], 2) if result[3] is not None else None,
+            "max_latency": round(result[4], 2) if result[4] is not None else None,
+            "error_count": result[5],
+            "success_count": result[6],
+            "error_rate": (
+                round((result[5] / result[0] * 100), 2) if result[0] > 0 else 0
+            ),
+        }
+
+    def get_client_traffic_over_time(
+        self, client_hash: str, hours: int = 24
+    ) -> List[Dict[str, Any]]:
+        """Get traffic over time for a specific client."""
+        sql = f"""
+        SELECT
+            date_trunc('minute', timestamp) as time_bucket,
+            COUNT(*) as request_count
+        FROM request_logs
+        WHERE client_identifier = ?
+            AND timestamp >= CURRENT_TIMESTAMP - INTERVAL '{hours} hours'
+        GROUP BY date_trunc('minute', timestamp)
+        ORDER BY time_bucket ASC
+        """
+        result = self.conn.execute(sql, (client_hash,)).fetchall()
+        return [
+            {
+                "timestamp": (
+                    row[0].isoformat() if hasattr(row[0], "isoformat") else str(row[0])
+                ),
+                "count": row[1],
+            }
+            for row in result
+        ]
 
     def close(self):
         """Close the database connection."""

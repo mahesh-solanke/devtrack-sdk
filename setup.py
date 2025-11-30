@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 
 setup(
     name="devtrack-sdk",
-    version="0.3.0",
+    version="0.4.0",
     description=(
         "Middleware-based API analytics and observability tool for FastAPI and Django"
     ),
@@ -13,6 +13,13 @@ setup(
     url="https://github.com/mahesh-solanke/devtrack-sdk",
     license="MIT",
     packages=find_packages(),
+    package_data={
+        "devtrack_sdk": [
+            "dashboard/dist/**/*",
+            "dashboard/index.html",
+        ],
+    },
+    include_package_data=True,
     install_requires=["fastapi", "httpx", "starlette", "django>=4.0.0"],
     python_requires=">=3.10",
     classifiers=[

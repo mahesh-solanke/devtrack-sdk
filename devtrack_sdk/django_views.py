@@ -1,7 +1,9 @@
 import json
+import re
+from pathlib import Path
 
 from django.conf import settings
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
@@ -41,7 +43,9 @@ def stats_view(request):
         db = get_db_instance()
 
         # Get query parameters
-        limit = int(request.GET.get("limit", 50))
+        # Default to None (no limit) to return all records, or use provided limit
+        limit_str = request.GET.get("limit")
+        limit = int(limit_str) if limit_str else None
         offset = int(request.GET.get("offset", 0))
         path_pattern = request.GET.get("path_pattern")
         status_code = request.GET.get("status_code")
@@ -52,7 +56,7 @@ def stats_view(request):
         elif status_code:
             entries = db.get_logs_by_status_code(int(status_code), limit=limit)
         else:
-            entries = db.get_all_logs(limit=limit)
+            entries = db.get_all_logs(limit=limit, offset=offset)
 
         # Get summary statistics
         stats_summary = db.get_stats_summary()
@@ -60,7 +64,7 @@ def stats_view(request):
         return JsonResponse(
             {
                 "summary": stats_summary,
-                "total": len(entries),
+                "total": db.get_logs_count(),
                 "entries": entries,
                 "filters": {
                     "limit": limit,
@@ -71,7 +75,11 @@ def stats_view(request):
             }
         )
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+        import traceback
+
+        error_details = traceback.format_exc()
+        print(f"[DevTrack stats_view] Error: {e}\n{error_details}")
+        return JsonResponse({"error": str(e), "details": error_details}, status=500)
 
 
 @csrf_exempt
@@ -119,7 +127,11 @@ def delete_logs_view(request):
             }
         )
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+        import traceback
+
+        error_details = traceback.format_exc()
+        print(f"[DevTrack stats_view] Error: {e}\n{error_details}")
+        return JsonResponse({"error": str(e), "details": error_details}, status=500)
 
 
 class DevTrackView(View):
@@ -136,3 +148,215 @@ class DevTrackView(View):
     def delete(self, request, *args, **kwargs):
         """Handle DELETE requests for log deletion"""
         return delete_logs_view(request)
+
+
+@require_http_methods(["GET"])
+def metrics_traffic_view(request):
+    """Django view for traffic metrics over time"""
+    try:
+        db = get_db_instance()
+        hours = int(request.GET.get("hours", 24))
+        traffic_data = db.get_traffic_over_time(hours=hours)
+        return JsonResponse({"traffic": traffic_data})
+    except Exception as e:
+        import traceback
+
+        error_details = traceback.format_exc()
+        print(f"[DevTrack stats_view] Error: {e}\n{error_details}")
+        return JsonResponse({"error": str(e), "details": error_details}, status=500)
+
+
+@require_http_methods(["GET"])
+def metrics_errors_view(request):
+    """Django view for error trends and top failing routes"""
+    try:
+        db = get_db_instance()
+        hours = int(request.GET.get("hours", 24))
+        error_data = db.get_error_trends(hours=hours)
+        return JsonResponse(error_data)
+    except Exception as e:
+        import traceback
+
+        error_details = traceback.format_exc()
+        print(f"[DevTrack stats_view] Error: {e}\n{error_details}")
+        return JsonResponse({"error": str(e), "details": error_details}, status=500)
+
+
+@require_http_methods(["GET"])
+def metrics_perf_view(request):
+    """Django view for performance metrics (p50/p95/p99 latency)"""
+    try:
+        db = get_db_instance()
+        hours = int(request.GET.get("hours", 24))
+        perf_data = db.get_performance_metrics(hours=hours)
+        return JsonResponse(perf_data)
+    except Exception as e:
+        import traceback
+
+        error_details = traceback.format_exc()
+        print(f"[DevTrack stats_view] Error: {e}\n{error_details}")
+        return JsonResponse({"error": str(e), "details": error_details}, status=500)
+
+
+@require_http_methods(["GET"])
+def consumers_view(request):
+    """Django view for consumer segmentation data"""
+    try:
+        db = get_db_instance()
+        hours = int(request.GET.get("hours", 24))
+        segments_data = db.get_consumer_segments(hours=hours)
+        return JsonResponse(segments_data)
+    except Exception as e:
+        import traceback
+
+        error_details = traceback.format_exc()
+        print(f"[DevTrack stats_view] Error: {e}\n{error_details}")
+        return JsonResponse({"error": str(e), "details": error_details}, status=500)
+
+
+@require_http_methods(["GET"])
+def dashboard_view(request):
+    """Django view for serving the DevTrack dashboard"""
+    try:
+        # Check for built React app first
+        # __file__ is in devtrack_sdk/django_views.py, so parent is devtrack_sdk/
+        dashboard_dist = Path(__file__).parent / "dashboard" / "dist"
+        dashboard_index = dashboard_dist / "index.html"
+
+        # Fallback to old HTML if built version doesn't exist
+        if not dashboard_index.exists():
+            dashboard_path = Path(__file__).parent / "dashboard" / "index.html"
+            if not dashboard_path.exists():
+                return HttpResponse(
+                    "Dashboard file not found", status=404, content_type="text/plain"
+                )
+
+            # Read the HTML content
+            html_content = dashboard_path.read_text(encoding="utf-8")
+
+            # Replace the hardcoded API URL with a dynamic one based on the request
+            base_url = request.build_absolute_uri("/").rstrip("/")
+            api_url = f"{base_url}/__devtrack__/stats"
+            html_content = html_content.replace(
+                'const API_URL = "http://localhost:8000/__devtrack__/stats";',
+                f'const API_URL = "{api_url}";',
+            )
+
+            # Replace metrics API URLs
+            traffic_url_old = (
+                "const TRAFFIC_API_URL = "
+                '"http://localhost:8000/__devtrack__/metrics/traffic";'
+            )
+            traffic_url_new = (
+                f'const TRAFFIC_API_URL = "{base_url}/__devtrack__/metrics/traffic";'
+            )
+            html_content = html_content.replace(traffic_url_old, traffic_url_new)
+
+            errors_url_old = (
+                "const ERRORS_API_URL = "
+                '"http://localhost:8000/__devtrack__/metrics/errors";'
+            )
+            errors_url_new = (
+                f'const ERRORS_API_URL = "{base_url}/__devtrack__/metrics/errors";'
+            )
+            html_content = html_content.replace(errors_url_old, errors_url_new)
+            perf_url_old = (
+                "const PERF_API_URL = "
+                '"http://localhost:8000/__devtrack__/metrics/perf";'
+            )
+            perf_url_new = (
+                f'const PERF_API_URL = "{base_url}/__devtrack__/metrics/perf";'
+            )
+            html_content = html_content.replace(perf_url_old, perf_url_new)
+            consumers_url_old = (
+                "const CONSUMERS_API_URL = "
+                '"http://localhost:8000/__devtrack__/consumers";'
+            )
+            consumers_url_new = (
+                f'const CONSUMERS_API_URL = "{base_url}/__devtrack__/consumers";'
+            )
+            html_content = html_content.replace(consumers_url_old, consumers_url_new)
+
+            return HttpResponse(html_content, content_type="text/html")
+
+        # Serve built React app
+        html_content = dashboard_index.read_text(encoding="utf-8")
+
+        # Inject API URLs into the HTML
+        base_url = request.build_absolute_uri("/").rstrip("/")
+        api_url = f"{base_url}/__devtrack__/stats"
+        traffic_url = f"{base_url}/__devtrack__/metrics/traffic"
+        errors_url = f"{base_url}/__devtrack__/metrics/errors"
+        perf_url = f"{base_url}/__devtrack__/metrics/perf"
+        consumers_url = f"{base_url}/__devtrack__/consumers"
+
+        # Replace API URL placeholders
+        html_content = html_content.replace(
+            "window.API_URL = window.API_URL || '/__devtrack__/stats';",
+            f"window.API_URL = '{api_url}';",
+        )
+        traffic_placeholder = (
+            "window.TRAFFIC_API_URL = window.TRAFFIC_API_URL || "
+            "'/__devtrack__/metrics/traffic';"
+        )
+        html_content = html_content.replace(
+            traffic_placeholder, f"window.TRAFFIC_API_URL = '{traffic_url}';"
+        )
+        errors_placeholder = (
+            "window.ERRORS_API_URL = window.ERRORS_API_URL || "
+            "'/__devtrack__/metrics/errors';"
+        )
+        html_content = html_content.replace(
+            errors_placeholder, f"window.ERRORS_API_URL = '{errors_url}';"
+        )
+        perf_placeholder = (
+            "window.PERF_API_URL = window.PERF_API_URL || "
+            "'/__devtrack__/metrics/perf';"
+        )
+        html_content = html_content.replace(
+            perf_placeholder, f"window.PERF_API_URL = '{perf_url}';"
+        )
+        consumers_placeholder = (
+            "window.CONSUMERS_API_URL = window.CONSUMERS_API_URL || "
+            "'/__devtrack__/consumers';"
+        )
+        html_content = html_content.replace(
+            consumers_placeholder, f"window.CONSUMERS_API_URL = '{consumers_url}';"
+        )
+
+        # Rewrite asset paths to use Django static files or direct path
+        html_content = re.sub(
+            r'(href|src)=["\'](\.\/)?assets\/([^"\']+)["\']',
+            r'\1="/__devtrack__/dashboard/assets/\3"',
+            html_content,
+        )
+
+        return HttpResponse(html_content, content_type="text/html")
+    except Exception as e:
+        return HttpResponse(
+            f"Failed to load dashboard: {str(e)}", status=500, content_type="text/plain"
+        )
+
+
+@require_http_methods(["GET"])
+def dashboard_assets_view(request, file_path):
+    """Django view for serving dashboard static assets"""
+    try:
+        from django.http import FileResponse
+
+        # __file__ is in devtrack_sdk/django_views.py, so parent is devtrack_sdk/
+        dashboard_dist = Path(__file__).parent / "dashboard" / "dist" / "assets"
+        asset_path = dashboard_dist / file_path
+
+        if not asset_path.exists() or not str(asset_path).startswith(
+            str(dashboard_dist)
+        ):
+            return HttpResponse(
+                "Asset not found", status=404, content_type="text/plain"
+            )
+
+        return FileResponse(open(asset_path, "rb"))
+    except Exception as e:
+        return HttpResponse(
+            f"Failed to load asset: {str(e)}", status=500, content_type="text/plain"
+        )
