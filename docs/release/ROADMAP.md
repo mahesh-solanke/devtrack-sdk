@@ -9,8 +9,8 @@
 
 | Version | Codename | Status | Release Target | Focus Area |
 |----------|-----------|---------|----------------|-------------|
-| **v0.3** | Foundation | 🟢 Released | ✅ Current | Core SDK & Data Capture |
-| **v0.4** | Pulse | 🟡 In Progress | Q4 2025 | Dashboard & Real-Time Metrics |
+| **v0.3** | Foundation | 🟢 Released | ✅ Released | Core SDK & Data Capture |
+| **v0.4** | Pulse | 🟢 Released | ✅ Current | Dashboard & Real-Time Metrics |
 | **v0.5** | Sentinel | ⚙️ Planned | Q1 2026 | Alerts & Health Monitoring |
 | **v0.6** | Archive | ⚙️ Planned | Q2 2026 | Export, Retention & Performance |
 | **v0.7** | Insight | 🧠 Concept | Q3 2026 | AI Insights & Anomaly Detection |
