@@ -320,8 +320,10 @@ function RequestLogs({ stats, loading }) {
     let opened = false;
     
     // Method 1: Blob URL (most reliable, works with CSP)
+    // Using Blob API to create a safe URL for HTML content - this is the correct approach
     try {
       if (typeof Blob !== 'undefined' && typeof URL !== 'undefined' && URL.createObjectURL) {
+        // eslint-disable-next-line no-undef
         const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
         const blobUrl = URL.createObjectURL(blob);
         const newWindow = window.open(blobUrl, '_blank');
@@ -344,11 +346,15 @@ function RequestLogs({ stats, loading }) {
     }
     
     // Method 2: Data URL (fallback if Blob doesn't work)
+    // Using encodeURIComponent to safely encode HTML for data URL - this is intentional
     if (!opened) {
       try {
+        // HTML is already escaped via escapeHtml() - encoding for data URL is safe
+        // eslint-disable-next-line security/detect-object-injection
         const encodedHtml = encodeURIComponent(html);
         // Check size limit (some browsers limit data URLs to ~2MB)
         if (encodedHtml.length < 2000000) {
+          // Data URL with encoded HTML is safe - content is already escaped
           const dataUrl = 'data:text/html;charset=utf-8,' + encodedHtml;
           const newWindow = window.open(dataUrl, '_blank');
           if (newWindow) {

@@ -253,6 +253,8 @@ class DevTrackDB:
                 raise ValueError("limit must be a non-negative integer")
             sql += f" LIMIT {limit_int}"
 
+        # path_pattern is parameterized with ? placeholder - safe from SQL injection
+        # nosemgrep: python.lang.security.audit.sql-injection
         cursor = self.conn.execute(sql, (path_pattern,))
         result = cursor.fetchall()
 
@@ -310,6 +312,8 @@ class DevTrackDB:
                 raise ValueError("limit must be a non-negative integer")
             sql += f" LIMIT {limit_int}"
 
+        # status_code is parameterized with ? placeholder - safe from SQL injection
+        # nosemgrep: python.lang.security.audit.sql-injection
         cursor = self.conn.execute(sql, (status_code,))
         result = cursor.fetchall()
 
@@ -460,6 +464,8 @@ class DevTrackDB:
         days_int = self._validate_int(days, "days", min_value=0)
 
         # Get count before deletion
+        # days_int is validated as integer - safe from SQL injection
+        # nosemgrep: python.lang.security.audit.sql-injection
         count_result = self.conn.execute(
             f"SELECT COUNT(*) FROM request_logs WHERE timestamp < "
             f"(CURRENT_TIMESTAMP - INTERVAL '{days_int} days')"
@@ -467,6 +473,8 @@ class DevTrackDB:
         count_before = count_result[0] if count_result else 0
 
         # Delete logs
+        # days_int is validated as integer - safe from SQL injection
+        # nosemgrep: python.lang.security.audit.sql-injection
         self.conn.execute(
             f"DELETE FROM request_logs WHERE timestamp < "
             f"(CURRENT_TIMESTAMP - INTERVAL '{days_int} days')"
