@@ -15,10 +15,11 @@ function KPICards({ stats }) {
     if (n === null || n === undefined || isNaN(n)) return '–';
     return `${Number(n).toFixed(2)}%`;
   };
-
+  console.log('stats', stats);
   const summary = stats?.summary || {};
   const totalRequests = summary.total_requests ?? stats?.total;
   const uniqueEndpoints = summary.unique_endpoints;
+  console.log('uniqueEndpoints', uniqueEndpoints);
   const avgDuration = summary.avg_duration_ms;
   const successCount = summary.success_count;
   const errorCount = summary.error_count;

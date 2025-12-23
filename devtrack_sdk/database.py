@@ -231,8 +231,40 @@ class DevTrackDB:
         if limit:
             sql += f" LIMIT {limit}"
 
-        result = self.conn.execute(sql, (path_pattern,)).fetchall()
-        columns = [desc[0] for desc in self.conn.description]
+        cursor = self.conn.execute(sql, (path_pattern,))
+        result = cursor.fetchall()
+
+        # Get column names from description, with fallback for DuckDB quirks
+        try:
+            columns = (
+                [desc[0] for desc in cursor.description] if cursor.description else None
+            )
+        except Exception:
+            columns = None
+
+        # If we couldn't get columns from description, use known column names
+        if not columns or (len(columns) == 1 and columns[0] in ["1", "NUMBER"]):
+            columns = [
+                "id",
+                "path",
+                "path_pattern",
+                "method",
+                "status_code",
+                "timestamp",
+                "client_ip",
+                "duration_ms",
+                "user_agent",
+                "referer",
+                "query_params",
+                "path_params",
+                "request_body",
+                "response_size",
+                "user_id",
+                "role",
+                "trace_id",
+                "client_identifier",
+                "created_at",
+            ]
 
         logs = []
         for row in result:
@@ -252,8 +284,40 @@ class DevTrackDB:
         if limit:
             sql += f" LIMIT {limit}"
 
-        result = self.conn.execute(sql, (status_code,)).fetchall()
-        columns = [desc[0] for desc in self.conn.description]
+        cursor = self.conn.execute(sql, (status_code,))
+        result = cursor.fetchall()
+
+        # Get column names from description, with fallback for DuckDB quirks
+        try:
+            columns = (
+                [desc[0] for desc in cursor.description] if cursor.description else None
+            )
+        except Exception:
+            columns = None
+
+        # If we couldn't get columns from description, use known column names
+        if not columns or (len(columns) == 1 and columns[0] in ["1", "NUMBER"]):
+            columns = [
+                "id",
+                "path",
+                "path_pattern",
+                "method",
+                "status_code",
+                "timestamp",
+                "client_ip",
+                "duration_ms",
+                "user_agent",
+                "referer",
+                "query_params",
+                "path_params",
+                "request_body",
+                "response_size",
+                "user_id",
+                "role",
+                "trace_id",
+                "client_identifier",
+                "created_at",
+            ]
 
         logs = []
         for row in result:
@@ -278,8 +342,29 @@ class DevTrackDB:
         FROM request_logs
         """
 
-        result = self.conn.execute(stats_sql).fetchone()
-        columns = [desc[0] for desc in self.conn.description]
+        cursor = self.conn.execute(stats_sql)
+        result = cursor.fetchone()
+
+        # Get column names from description, with fallback for DuckDB quirks
+        try:
+            columns = (
+                [desc[0] for desc in cursor.description] if cursor.description else None
+            )
+        except Exception:
+            columns = None
+
+        # If we couldn't get columns from description or got invalid column names,
+        # use the known column names from the SQL query
+        if not columns or (len(columns) == 1 and columns[0] in ["1", "NUMBER"]):
+            columns = [
+                "total_requests",
+                "unique_endpoints",
+                "avg_duration_ms",
+                "min_duration_ms",
+                "max_duration_ms",
+                "success_count",
+                "error_count",
+            ]
 
         return dict(zip(columns, result))
 

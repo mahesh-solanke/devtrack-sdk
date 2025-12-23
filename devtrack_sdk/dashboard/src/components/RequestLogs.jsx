@@ -180,13 +180,18 @@ function RequestLogs({ stats, loading }) {
   };
 
   const openInNewWindow = (entry) => {
-    // Create a new tab with the entry details
-    const newWindow = window.open('', '_blank');
-    if (!newWindow) {
-      // If popup blocked, fallback to modal
-      setSelectedEntry(entry);
-      return;
-    }
+    // Helper function to escape HTML (works in all contexts)
+    const escapeHtml = (text) => {
+      if (text === null || text === undefined) return '';
+      const str = String(text);
+      // Use manual escaping for maximum compatibility
+      return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    };
 
     // Build HTML content
     const fieldsHtml = Object.keys(entry).map(key => {
@@ -219,61 +224,161 @@ function RequestLogs({ stats, loading }) {
       const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
       const isJson = typeof value === 'object' && value !== null;
       
-      // Escape HTML
-      const escapedDisplay = String(displayValue)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
+      // Escape HTML properly
+      const escapedDisplay = escapeHtml(displayValue);
       
       const escapedValue = isJson 
         ? '<pre>' + escapedDisplay + '</pre>'
         : escapedDisplay;
       
       return '<div class="field">' +
-        '<div class="field-label">' + label + '</div>' +
+        '<div class="field-label">' + escapeHtml(label) + '</div>' +
         '<div class="field-value ' + valueClass + '">' + escapedValue + '</div>' +
         '</div>';
     }).join('');
 
     const entryId = entry.id || 'N/A';
-    const html = '<!DOCTYPE html>' +
-      '<html>' +
-      '<head>' +
-      '<title>Request Details - ID: ' + entryId + '</title>' +
-      '<style>' +
-      '* { margin: 0; padding: 0; box-sizing: border-box; }' +
-      'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0f172a; color: #e2e8f0; padding: 20px; }' +
-      '.container { max-width: 1200px; margin: 0 auto; }' +
-      'h1 { color: #f1f5f9; margin-bottom: 10px; font-size: 24px; }' +
-      '.subtitle { color: #94a3b8; margin-bottom: 30px; font-size: 14px; }' +
-      '.field { border-bottom: 1px solid #1e293b; padding: 15px 0; }' +
-      '.field:last-child { border-bottom: none; }' +
-      '.field-label { font-size: 11px; text-transform: uppercase; color: #64748b; margin-bottom: 8px; letter-spacing: 0.5px; font-weight: 600; }' +
-      '.field-value { font-size: 14px; color: #e2e8f0; word-break: break-word; }' +
-      '.field-value pre { background: #020617; padding: 15px; border-radius: 8px; overflow-x: auto; font-size: 12px; font-family: "Courier New", monospace; border: 1px solid #1e293b; white-space: pre-wrap; }' +
-      '.status-2xx { color: #4ade80; }' +
-      '.status-4xx { color: #fbbf24; }' +
-      '.status-5xx { color: #f87171; }' +
-      '</style>' +
-      '</head>' +
-      '<body>' +
-      '<div class="container">' +
-      '<h1>Request Details</h1>' +
-      '<div class="subtitle">Log ID: ' + entryId + '</div>' +
-      fieldsHtml +
-      '</div>' +
-      '</body>' +
-      '</html>';
+    const escapedEntryId = escapeHtml(entryId);
+    
+    // Build complete HTML document with proper escaping
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Request Details - ID: ${escapedEntryId}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; 
+      background: #0f172a; 
+      color: #e2e8f0; 
+      padding: 20px; 
+      line-height: 1.6;
+    }
+    .container { 
+      max-width: 1200px; 
+      margin: 0 auto; 
+    }
+    h1 { 
+      color: #f1f5f9; 
+      margin-bottom: 10px; 
+      font-size: 24px; 
+      font-weight: 600;
+    }
+    .subtitle { 
+      color: #94a3b8; 
+      margin-bottom: 30px; 
+      font-size: 14px; 
+    }
+    .field { 
+      border-bottom: 1px solid #1e293b; 
+      padding: 15px 0; 
+    }
+    .field:last-child { 
+      border-bottom: none; 
+    }
+    .field-label { 
+      font-size: 11px; 
+      text-transform: uppercase; 
+      color: #64748b; 
+      margin-bottom: 8px; 
+      letter-spacing: 0.5px; 
+      font-weight: 600; 
+    }
+    .field-value { 
+      font-size: 14px; 
+      color: #e2e8f0; 
+      word-break: break-word; 
+    }
+    .field-value pre { 
+      background: #020617; 
+      padding: 15px; 
+      border-radius: 8px; 
+      overflow-x: auto; 
+      font-size: 12px; 
+      font-family: "Courier New", "Consolas", "Monaco", monospace; 
+      border: 1px solid #1e293b; 
+      white-space: pre-wrap; 
+      word-wrap: break-word;
+    }
+    .status-2xx { color: #4ade80; }
+    .status-4xx { color: #fbbf24; }
+    .status-5xx { color: #f87171; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Request Details</h1>
+    <div class="subtitle">Log ID: ${escapedEntryId}</div>
+    ${fieldsHtml}
+  </div>
+</body>
+</html>`;
 
+    // Try multiple methods for maximum compatibility
+    let opened = false;
+    
+    // Method 1: Blob URL (most reliable, works with CSP)
     try {
-      newWindow.document.open();
-      newWindow.document.write(html);
-      newWindow.document.close();
-    } catch (error) {
-      console.error('Failed to write to new window:', error);
-      // Fallback to modal
+      if (typeof Blob !== 'undefined' && typeof URL !== 'undefined' && URL.createObjectURL) {
+        const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+        const blobUrl = URL.createObjectURL(blob);
+        const newWindow = window.open(blobUrl, '_blank');
+        
+        if (newWindow) {
+          // Clean up the URL after window opens
+          setTimeout(() => {
+            try {
+              URL.revokeObjectURL(blobUrl);
+            } catch (e) {
+              // Ignore cleanup errors
+            }
+          }, 1000);
+          newWindow.focus();
+          opened = true;
+        }
+      }
+    } catch (blobError) {
+      console.warn('Blob URL method failed, trying fallback:', blobError);
+    }
+    
+    // Method 2: Data URL (fallback if Blob doesn't work)
+    if (!opened) {
+      try {
+        const encodedHtml = encodeURIComponent(html);
+        // Check size limit (some browsers limit data URLs to ~2MB)
+        if (encodedHtml.length < 2000000) {
+          const dataUrl = 'data:text/html;charset=utf-8,' + encodedHtml;
+          const newWindow = window.open(dataUrl, '_blank');
+          if (newWindow) {
+            newWindow.focus();
+            opened = true;
+          }
+        }
+      } catch (dataUrlError) {
+        console.warn('Data URL method failed, trying document.write:', dataUrlError);
+      }
+    }
+    
+    // Method 3: document.write (final fallback)
+    if (!opened) {
+      try {
+        const newWindow = window.open('', '_blank');
+        if (newWindow) {
+          newWindow.document.open();
+          newWindow.document.write(html);
+          newWindow.document.close();
+          newWindow.focus();
+          opened = true;
+        }
+      } catch (writeError) {
+        console.error('All methods failed to open new window:', writeError);
+      }
+    }
+    
+    // If all methods failed, fallback to modal
+    if (!opened) {
       setSelectedEntry(entry);
     }
   };
