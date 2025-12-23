@@ -24,6 +24,8 @@ async function fetchWithCacheBust(url, timestamp) {
 
 export async function fetchStats(timestamp) {
   const url = `${API_URL}?limit=${MAX_RECORDS_LIMIT}&_t=${timestamp}`;
+  console.log('[fetchStats] Fetching stats from:', url);
+  
   const response = await fetch(url, {
     headers: {
       'Accept': 'application/json',
@@ -33,10 +35,18 @@ export async function fetchStats(timestamp) {
   });
 
   if (!response.ok) {
+    console.error('[fetchStats] Request failed:', response.status, response.statusText);
     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
   }
 
-  return response.json();
+  const data = await response.json();
+  console.log('[fetchStats] Success:', {
+    total: data?.total || 0,
+    entries: data?.entries?.length || 0,
+    summary: data?.summary ? Object.keys(data.summary).join(', ') : 'N/A'
+  });
+
+  return data;
 }
 
 export async function fetchTraffic(timestamp) {
