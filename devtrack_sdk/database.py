@@ -169,7 +169,12 @@ class DevTrackDB:
         """Retrieve all logs from the database."""
         sql = "SELECT * FROM request_logs ORDER BY created_at DESC"
         if limit:
-            sql += f" LIMIT {limit} OFFSET {offset}"
+            # Validate and sanitize limit and offset to prevent SQL injection
+            limit_int = int(limit)
+            offset_int = int(offset)
+            if limit_int < 0 or offset_int < 0:
+                raise ValueError("limit and offset must be non-negative integers")
+            sql += f" LIMIT {limit_int} OFFSET {offset_int}"
 
         # Execute query to get description first, then fetch results
         cursor = self.conn.execute(sql)
@@ -229,7 +234,11 @@ class DevTrackDB:
             "SELECT * FROM request_logs WHERE path_pattern = ? ORDER BY created_at DESC"
         )
         if limit:
-            sql += f" LIMIT {limit}"
+            # Validate and sanitize limit to prevent SQL injection
+            limit_int = int(limit)
+            if limit_int < 0:
+                raise ValueError("limit must be a non-negative integer")
+            sql += f" LIMIT {limit_int}"
 
         cursor = self.conn.execute(sql, (path_pattern,))
         result = cursor.fetchall()
@@ -282,7 +291,11 @@ class DevTrackDB:
             "SELECT * FROM request_logs WHERE status_code = ? ORDER BY created_at DESC"
         )
         if limit:
-            sql += f" LIMIT {limit}"
+            # Validate and sanitize limit to prevent SQL injection
+            limit_int = int(limit)
+            if limit_int < 0:
+                raise ValueError("limit must be a non-negative integer")
+            sql += f" LIMIT {limit_int}"
 
         cursor = self.conn.execute(sql, (status_code,))
         result = cursor.fetchall()
