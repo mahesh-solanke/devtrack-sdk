@@ -12,6 +12,19 @@ _thread_local = threading.local()
 class DevTrackDB:
     """DuckDB manager for DevTrack logging data."""
 
+    @staticmethod
+    def _validate_int(value: Any, name: str = "value", min_value: int = 0) -> int:
+        """Validate and sanitize integer value to prevent SQL injection."""
+        try:
+            int_value = int(value)
+            if int_value < min_value:
+                raise ValueError(f"{name} must be >= {min_value}")
+            return int_value
+        except (ValueError, TypeError) as e:
+            if isinstance(e, ValueError) and "must be" in str(e):
+                raise
+            raise ValueError(f"{name} must be a valid integer") from e
+
     def __init__(self, db_path: str = "devtrack_logs.db"):
         """Initialize the database connection and create tables if they don't exist."""
         self.db_path = db_path
@@ -443,17 +456,20 @@ class DevTrackDB:
 
     def delete_logs_older_than(self, days: int) -> int:
         """Delete logs older than specified number of days."""
+        # Validate and sanitize days to prevent SQL injection
+        days_int = self._validate_int(days, "days", min_value=0)
+
         # Get count before deletion
         count_result = self.conn.execute(
-            "SELECT COUNT(*) FROM request_logs WHERE timestamp < "
-            "(CURRENT_TIMESTAMP - INTERVAL '{} days')".format(days)
+            f"SELECT COUNT(*) FROM request_logs WHERE timestamp < "
+            f"(CURRENT_TIMESTAMP - INTERVAL '{days_int} days')"
         ).fetchone()
         count_before = count_result[0] if count_result else 0
 
         # Delete logs
         self.conn.execute(
-            "DELETE FROM request_logs WHERE timestamp < "
-            "(CURRENT_TIMESTAMP - INTERVAL '{} days')".format(days)
+            f"DELETE FROM request_logs WHERE timestamp < "
+            f"(CURRENT_TIMESTAMP - INTERVAL '{days_int} days')"
         )
 
         return count_before
@@ -494,12 +510,15 @@ class DevTrackDB:
         self, hours: int = 24, interval_minutes: int = 5
     ) -> List[Dict[str, Any]]:
         """Get traffic counts grouped by time intervals."""
+        # Validate and sanitize hours to prevent SQL injection
+        hours_int = self._validate_int(hours, "hours", min_value=0)
+
         sql = f"""
         SELECT
             date_trunc('minute', timestamp) as time_bucket,
             COUNT(*) as request_count
         FROM request_logs
-        WHERE timestamp >= CURRENT_TIMESTAMP - INTERVAL '{hours} hours'
+        WHERE timestamp >= CURRENT_TIMESTAMP - INTERVAL '{hours_int} hours'
         GROUP BY date_trunc('minute', timestamp)
         ORDER BY time_bucket ASC
         """
@@ -518,6 +537,9 @@ class DevTrackDB:
         self, hours: int = 24, interval_minutes: int = 5
     ) -> Dict[str, Any]:
         """Get error trends including failure rates over time and top failing routes."""
+        # Validate and sanitize hours to prevent SQL injection
+        hours_int = self._validate_int(hours, "hours", min_value=0)
+
         # Error rates over time
         sql = f"""
         SELECT
@@ -525,7 +547,7 @@ class DevTrackDB:
             COUNT(*) as total_requests,
             COUNT(CASE WHEN status_code >= 400 THEN 1 END) as error_count
         FROM request_logs
-        WHERE timestamp >= CURRENT_TIMESTAMP - INTERVAL '{hours} hours'
+        WHERE timestamp >= CURRENT_TIMESTAMP - INTERVAL '{hours_int} hours'
         GROUP BY date_trunc('minute', timestamp)
         ORDER BY time_bucket ASC
         """
@@ -581,13 +603,16 @@ class DevTrackDB:
         """Get performance metrics including p50, p95, p99 latency over time."""
         import statistics
 
+        # Validate and sanitize hours to prevent SQL injection
+        hours_int = self._validate_int(hours, "hours", min_value=0)
+
         # Get all duration_ms values grouped by time bucket
         sql = f"""
         SELECT
             date_trunc('minute', timestamp) as time_bucket,
             duration_ms
         FROM request_logs
-        WHERE timestamp >= CURRENT_TIMESTAMP - INTERVAL '{hours} hours'
+        WHERE timestamp >= CURRENT_TIMESTAMP - INTERVAL '{hours_int} hours'
             AND duration_ms IS NOT NULL
         ORDER BY time_bucket ASC, duration_ms ASC
         """
@@ -647,10 +672,11 @@ class DevTrackDB:
                 )
 
         # Overall percentiles
+        # hours_int already validated above
         overall_sql = f"""
         SELECT duration_ms
         FROM request_logs
-        WHERE timestamp >= CURRENT_TIMESTAMP - INTERVAL '{hours} hours'
+        WHERE timestamp >= CURRENT_TIMESTAMP - INTERVAL '{hours_int} hours'
             AND duration_ms IS NOT NULL
         ORDER BY duration_ms ASC
         """
@@ -694,6 +720,9 @@ class DevTrackDB:
 
     def get_consumer_segments(self, hours: int = 24) -> Dict[str, Any]:
         """Get consumer segmentation data grouped by client identifier."""
+        # Validate and sanitize hours to prevent SQL injection
+        hours_int = self._validate_int(hours, "hours", min_value=0)
+
         # Get unique clients and their stats, including most recent IP
         sql = f"""
         SELECT
@@ -706,10 +735,10 @@ class DevTrackDB:
             MAX(timestamp) as last_seen,
             (SELECT client_ip FROM request_logs r2
              WHERE r2.client_identifier = request_logs.client_identifier
-             AND r2.timestamp >= CURRENT_TIMESTAMP - INTERVAL '{hours} hours'
+             AND r2.timestamp >= CURRENT_TIMESTAMP - INTERVAL '{hours_int} hours'
              ORDER BY r2.timestamp DESC LIMIT 1) as latest_ip
         FROM request_logs
-        WHERE timestamp >= CURRENT_TIMESTAMP - INTERVAL '{hours} hours'
+        WHERE timestamp >= CURRENT_TIMESTAMP - INTERVAL '{hours_int} hours'
             AND client_identifier IS NOT NULL
         GROUP BY client_identifier
         ORDER BY request_count DESC
@@ -746,10 +775,11 @@ class DevTrackDB:
             )
 
         # Get total unique clients
+        # hours_int already validated above
         total_clients_sql = f"""
         SELECT COUNT(DISTINCT client_identifier)
         FROM request_logs
-        WHERE timestamp >= CURRENT_TIMESTAMP - INTERVAL '{hours} hours'
+        WHERE timestamp >= CURRENT_TIMESTAMP - INTERVAL '{hours_int} hours'
             AND client_identifier IS NOT NULL
         """
         total_clients = self.conn.execute(total_clients_sql).fetchone()[0] or 0
@@ -764,7 +794,7 @@ class DevTrackDB:
             COUNT(DISTINCT client_identifier) as client_count,
             COUNT(*) as request_count
         FROM request_logs
-        WHERE timestamp >= CURRENT_TIMESTAMP - INTERVAL '{hours} hours'
+        WHERE timestamp >= CURRENT_TIMESTAMP - INTERVAL '{hours_int} hours'
         GROUP BY source_type
         """
         source_result = self.conn.execute(source_sql).fetchall()
@@ -784,6 +814,9 @@ class DevTrackDB:
 
     def get_client_metrics(self, client_hash: str, hours: int = 24) -> Dict[str, Any]:
         """Get detailed metrics for a specific client."""
+        # Validate and sanitize hours to prevent SQL injection
+        hours_int = self._validate_int(hours, "hours", min_value=0)
+
         sql = f"""
         SELECT
             COUNT(*) as request_count,
@@ -796,7 +829,7 @@ class DevTrackDB:
                 THEN 1 END) as success_count
         FROM request_logs
         WHERE client_identifier = ?
-            AND timestamp >= CURRENT_TIMESTAMP - INTERVAL '{hours} hours'
+            AND timestamp >= CURRENT_TIMESTAMP - INTERVAL '{hours_int} hours'
         """
         result = self.conn.execute(sql, (client_hash,)).fetchone()
 
@@ -821,13 +854,16 @@ class DevTrackDB:
         self, client_hash: str, hours: int = 24
     ) -> List[Dict[str, Any]]:
         """Get traffic over time for a specific client."""
+        # Validate and sanitize hours to prevent SQL injection
+        hours_int = self._validate_int(hours, "hours", min_value=0)
+
         sql = f"""
         SELECT
             date_trunc('minute', timestamp) as time_bucket,
             COUNT(*) as request_count
         FROM request_logs
         WHERE client_identifier = ?
-            AND timestamp >= CURRENT_TIMESTAMP - INTERVAL '{hours} hours'
+            AND timestamp >= CURRENT_TIMESTAMP - INTERVAL '{hours_int} hours'
         GROUP BY date_trunc('minute', timestamp)
         ORDER BY time_bucket ASC
         """
