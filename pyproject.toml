@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "devtrack-sdk"  # ✅ Hyphenated name for PyPI friendliness
-version = "0.4.0"
+version = "0.4.1"
 description = "Middleware-based API analytics and observability tool for FastAPI and Django"
 readme = {file = "README.md", content-type = "text/markdown"}
 requires-python = ">=3.10"
