@@ -38,6 +38,62 @@ def parse_lock_error(error_msg: str) -> dict:
     }
 
 
+def check_db_initialized_via_api(console, db_path: str, timeout: int = 2) -> bool:
+    """
+    Check if database is initialized via HTTP API.
+    Returns True if initialized and shows info, False otherwise.
+    """
+    try:
+        stats_url = detect_devtrack_endpoint(timeout=timeout)
+        if not stats_url:
+            return False
+
+        response = requests.get(stats_url, timeout=5)
+        if response.status_code != 200:
+            return False
+
+        # Database is accessible via API - it's initialized
+        data = response.json()
+        console.print(
+            "[bold green]✅ Database is already initialized " "(accessible via API)[/]"
+        )
+
+        # Show database info from API
+        entries = data.get("entries", [])
+        total_requests = len(entries)
+        unique_endpoints = len(
+            set(
+                (
+                    entry.get("path_pattern", entry.get("path", "")),
+                    entry.get("method", ""),
+                )
+                for entry in entries
+            )
+        )
+
+        table = Table(
+            title="Database Information (via API)",
+            border_style="green",
+        )
+        table.add_column("Property", style="cyan")
+        table.add_column("Value", style="green")
+        table.add_row("Database Path", db_path)
+        table.add_row("Total Requests", str(total_requests))
+        table.add_row("Unique Endpoints", str(unique_endpoints))
+        console.print(table)
+
+        console.print(
+            "[dim]💡 Your application is running and the database "
+            "is already initialized.[/]"
+        )
+        console.print(
+            "[dim]💡 To reset the database, run: " "[cyan]devtrack reset[/][/]"
+        )
+        return True
+    except Exception:
+        return False
+
+
 def detect_devtrack_endpoint(timeout=0.5) -> str:
     possible_hosts = ["localhost", "127.0.0.1", "0.0.0.0"]
     possible_ports = [8000, 8888, 9000, 8080]
@@ -133,7 +189,7 @@ def init(
             # Tables exist - check if we need to reset (--force)
             db_readonly.close()
 
-            if force:
+            def force_initialize_database():
                 # --force specified: delete all logs and reset sequence
                 console.print("[yellow]🔄 Resetting database (--force specified)...[/]")
 
@@ -227,10 +283,14 @@ def init(
                 except Exception as e:
                     console.print(f"[red]❌ Failed to reset database:[/] {e}")
                     raise typer.Exit(1)
+
+            if force:
+                force_initialize_database()
             else:
                 # No force - just show that it's already initialized
                 console.print(
-                    f"[bold green]✅ Database already initialized at:[/] {db_path}"
+                    f"[bold green]✅ Database already initialized at:[/] {db_path}, \
+                        if you want to reset it, run `devtrack reset`[/]"
                 )
 
                 # Show database info
@@ -276,14 +336,22 @@ def init(
         if tables_already_exist and not force:
             # Tables exist and no force - already initialized
             console.print(
-                f"[bold green]✅ Database already initialized at:[/] {db_path}"
+                f"[bold green]✅ Database already initialized at:[/] {db_path}, \
+                if you want to reset it, run `devtrack reset`[/]"
             )
             raise typer.Exit(0)
     except (duckdb.IOException, Exception):
-        # Can't check - continue to try creating tables
+        # Can't check - might be locked, try API check before asking overwrite
         pass
 
+    # Before asking to overwrite, check if database is initialized via API
+    # (This prevents asking to overwrite when app is running and DB is initialized)
     if os.path.exists(db_path) and not force:
+        # Try to check via API first if database file exists but we couldn't access it
+        if check_db_initialized_via_api(console, db_path, timeout=1):
+            raise typer.Exit(0)
+
+        # Only ask overwrite if we couldn't determine initialization status via API
         if not Confirm.ask(f"Database '{db_path}' already exists. Overwrite?"):
             console.print("[yellow]Initialization cancelled.[/]")
             raise typer.Exit(0)
@@ -324,6 +392,14 @@ def init(
             console.print("[yellow]⚠️  Cannot create tables (database is locked)[/]")
             if lock_info["pid"]:
                 console.print(f"[dim]   Locked by process: PID {lock_info['pid']}[/]")
+
+            # Try to check if database is already initialized via HTTP API
+            console.print(
+                "[dim]   Checking if database is already initialized via API...[/]"
+            )
+            if check_db_initialized_via_api(console, db_path, timeout=2):
+                raise typer.Exit(0)
+
             console.print(
                 "[dim]   Your application may auto-initialize on first request[/]"
             )
@@ -548,6 +624,7 @@ def query(
         console.print(f"[red]Database '{db_path}' does not exist.[/]")
         raise typer.Exit(1)
 
+    entries = None
     try:
         with Progress(
             SpinnerColumn(),
@@ -566,6 +643,8 @@ def query(
             else:
                 entries = db.get_all_logs(limit)
 
+            db.close()
+
             # Apply additional filters
             if method:
                 entries = [
@@ -582,56 +661,129 @@ def query(
                 ]
 
             progress.update(task, description="✅ Query complete!")
+    except duckdb.IOException as e:
+        # Database is locked - try HTTP endpoint as fallback
+        error_msg = str(e)
+        if "lock" in error_msg.lower() or "conflicting" in error_msg.lower():
+            console.print("[yellow]⚠️  Database is locked by another process.[/]")
+            console.print("[dim]   Attempting to fetch logs via HTTP endpoint...[/]")
+            try:
+                stats_url = detect_devtrack_endpoint(timeout=2)
+                if stats_url:
+                    with console.status("[bold cyan]Fetching logs from DevTrack...[/]"):
+                        response = requests.get(stats_url, timeout=5)
+                        response.raise_for_status()
+                        data = response.json()
+                        entries = data.get("entries", [])
 
-        if not entries:
-            console.print("[yellow]No logs found matching the criteria.[/]")
-            return
+                        # Apply filters to API data
+                        if path_pattern:
+                            entries = [
+                                e
+                                for e in entries
+                                if path_pattern.lower()
+                                in e.get("path_pattern", e.get("path", "")).lower()
+                            ]
 
-        # Display results
-        console.rule("[bold green]📊 Query Results[/]", style="green")
+                        if status_code:
+                            entries = [
+                                e
+                                for e in entries
+                                if e.get("status_code") == status_code
+                            ]
 
-        if verbose:
-            # Detailed view
-            for i, entry in enumerate(entries[:10], 1):  # Show first 10 in detail
-                panel = Panel(
-                    f"[bold]Path:[/] {entry.get('path', 'N/A')}\n"
-                    f"[bold]Method:[/] {entry.get('method', 'N/A')}\n"
-                    f"[bold]Status:[/] {entry.get('status_code', 'N/A')}\n"
-                    f"[bold]Duration:[/] {entry.get('duration_ms', 0):.2f} ms\n"
-                    f"[bold]Timestamp:[/] {entry.get('timestamp', 'N/A')}\n"
-                    f"[bold]Client IP:[/] {entry.get('client_ip', 'N/A')}\n"
-                    f"[bold]User Agent:[/] {entry.get('user_agent', 'N/A')[:50]}...",
-                    title=f"Entry {i}",
-                    border_style="blue",
+                        if method:
+                            entries = [
+                                e
+                                for e in entries
+                                if e.get("method", "").upper() == method.upper()
+                            ]
+
+                        if days:
+                            cutoff_date = datetime.now() - timedelta(days=days)
+                            entries = [
+                                e
+                                for e in entries
+                                if datetime.fromisoformat(
+                                    e["timestamp"].replace("Z", "+00:00")
+                                )
+                                >= cutoff_date
+                            ]
+
+                        # Apply limit after all filters
+                        if limit:
+                            entries = entries[:limit]
+
+                        console.print(
+                            "[green]✅ Successfully fetched logs via HTTP endpoint[/]"
+                        )
+            except Exception as endpoint_error:
+                console.print(f"[red]❌ Failed to query database:[/] {e}")
+                console.print(
+                    f"[red]❌ Also failed to fetch via HTTP endpoint:[/] "
+                    f"{endpoint_error}"
                 )
-                console.print(panel)
+                console.print(
+                    "[yellow]💡 Tip: Ensure your application is running "
+                    "and accessible[/]"
+                )
+                raise typer.Exit(1)
         else:
-            # Table view
-            table = Table(
-                title=f"Query Results ({len(entries)} entries)", border_style="blue"
-            )
-            table.add_column("Path", style="cyan", no_wrap=True)
-            table.add_column("Method", style="green")
-            table.add_column("Status", justify="center", style="yellow")
-            table.add_column("Duration (ms)", justify="right", style="magenta")
-            table.add_column("Timestamp", style="dim")
-
-            for entry in entries[:limit]:
-                table.add_row(
-                    entry.get("path", "N/A"),
-                    entry.get("method", "N/A"),
-                    str(entry.get("status_code", "N/A")),
-                    f"{entry.get('duration_ms', 0):.2f}",
-                    entry.get("timestamp", "N/A")[:19],  # Show only date and time
-                )
-
-            console.print(table)
-
-        console.print(f"[bold green]📊 Total results:[/] {len(entries)}")
-
+            # Other IOException - re-raise
+            console.print(f"[red]❌ Failed to query database:[/] {e}")
+            raise typer.Exit(1)
+    except typer.Exit:
+        # Re-raise typer.Exit to allow proper exit
+        raise
     except Exception as e:
         console.print(f"[red]❌ Failed to query logs:[/] {e}")
         raise typer.Exit(1)
+
+    if not entries:
+        console.print("[yellow]No logs found matching the criteria.[/]")
+        return
+
+    # Display results
+    console.rule("[bold green]📊 Query Results[/]", style="green")
+
+    if verbose:
+        # Detailed view
+        for i, entry in enumerate(entries[:10], 1):  # Show first 10 in detail
+            panel = Panel(
+                f"[bold]Path:[/] {entry.get('path', 'N/A')}\n"
+                f"[bold]Method:[/] {entry.get('method', 'N/A')}\n"
+                f"[bold]Status:[/] {entry.get('status_code', 'N/A')}\n"
+                f"[bold]Duration:[/] {entry.get('duration_ms', 0):.2f} ms\n"
+                f"[bold]Timestamp:[/] {entry.get('timestamp', 'N/A')}\n"
+                f"[bold]Client IP:[/] {entry.get('client_ip', 'N/A')}\n"
+                f"[bold]User Agent:[/] {entry.get('user_agent', 'N/A')[:50]}...",
+                title=f"Entry {i}",
+                border_style="blue",
+            )
+            console.print(panel)
+    else:
+        # Table view
+        table = Table(
+            title=f"Query Results ({len(entries)} entries)", border_style="blue"
+        )
+        table.add_column("Path", style="cyan", no_wrap=True)
+        table.add_column("Method", style="green")
+        table.add_column("Status", justify="center", style="yellow")
+        table.add_column("Duration (ms)", justify="right", style="magenta")
+        table.add_column("Timestamp", style="dim")
+
+        for entry in entries[:limit]:
+            table.add_row(
+                entry.get("path", "N/A"),
+                entry.get("method", "N/A"),
+                str(entry.get("status_code", "N/A")),
+                f"{entry.get('duration_ms', 0):.2f}",
+                entry.get("timestamp", "N/A")[:19],  # Show only date and time
+            )
+
+        console.print(table)
+
+    console.print(f"[bold green]📊 Total results:[/] {len(entries)}")
 
 
 @app.command()
@@ -647,6 +799,7 @@ def stat(
     console = Console()
     console.rule("[bold green]📊 DevTrack Stats CLI[/]", style="green")
 
+    entries = None
     if use_endpoint:
         # Use HTTP endpoint
         stats_url = detect_devtrack_endpoint()
@@ -661,7 +814,7 @@ def stat(
                 console.print(f"[red]❌ Failed to fetch stats from {stats_url}[/]\n{e}")
                 raise typer.Exit(1)
     else:
-        # Use database
+        # Try database first, fallback to HTTP endpoint if locked
         if not os.path.exists(db_path):
             console.print(f"[red]Database '{db_path}' does not exist.[/]")
             raise typer.Exit(1)
@@ -669,6 +822,45 @@ def stat(
         try:
             db = DevTrackDB(db_path, read_only=True)
             entries = db.get_all_logs()
+            db.close()
+        except duckdb.IOException as e:
+            # Database is locked - try HTTP endpoint as fallback
+            error_msg = str(e)
+            if "lock" in error_msg.lower() or "conflicting" in error_msg.lower():
+                console.print("[yellow]⚠️  Database is locked by another process.[/]")
+                console.print(
+                    "[dim]   Attempting to fetch stats via HTTP endpoint...[/]"
+                )
+                try:
+                    stats_url = detect_devtrack_endpoint()
+                    with console.status(
+                        "[bold cyan]Fetching stats from DevTrack...[/]"
+                    ):
+                        response = requests.get(stats_url, timeout=5)
+                        response.raise_for_status()
+                        data = response.json()
+                        entries = data.get("entries", [])
+                        console.print(
+                            "[green]✅ Successfully fetched stats via HTTP endpoint[/]"
+                        )
+                except Exception as endpoint_error:
+                    console.print(f"[red]❌ Failed to read database:[/] {e}")
+                    console.print(
+                        f"[red]❌ Also failed to fetch via HTTP endpoint:[/] "
+                        f"{endpoint_error}"
+                    )
+                    console.print(
+                        "[yellow]💡 Tip: Use `devtrack stat --endpoint` "
+                        "when your app is running[/]"
+                    )
+                    raise typer.Exit(1)
+            else:
+                # Other IOException - re-raise
+                console.print(f"[red]❌ Failed to read database:[/] {e}")
+                raise typer.Exit(1)
+        except typer.Exit:
+            # Re-raise typer.Exit to allow proper exit
+            raise
         except Exception as e:
             console.print(f"[red]❌ Failed to read database:[/] {e}")
             raise typer.Exit(1)
