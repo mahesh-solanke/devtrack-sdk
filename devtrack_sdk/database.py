@@ -25,20 +25,24 @@ class DevTrackDB:
                 raise
             raise ValueError(f"{name} must be a valid integer") from e
 
-    def __init__(self, db_path: str = "devtrack_logs.db"):
+    def __init__(self, db_path: str = "devtrack_logs.db", read_only: bool = True):
         """Initialize the database connection and create tables if they don't exist."""
         self.db_path = db_path
         self._lock = threading.Lock()
-        # Create initial connection for table creation
-        self._init_conn = duckdb.connect(db_path)
-        self._create_tables()
-        self._init_conn.close()
+        self.read_only = read_only
+        # Create initial connection for table creation (only if not read-only)
+        if not read_only:
+            self._init_conn = duckdb.connect(db_path)
+            self._create_tables()
+            self._init_conn.close()
 
     @property
     def conn(self):
         """Get thread-local database connection."""
         if not hasattr(_thread_local, "connection") or _thread_local.connection is None:
-            _thread_local.connection = duckdb.connect(self.db_path)
+            _thread_local.connection = duckdb.connect(
+                self.db_path, read_only=self.read_only
+            )
         else:
             # Check if connection is closed and reconnect if needed
             try:
@@ -50,7 +54,9 @@ class DevTrackDB:
                     _thread_local.connection.close()
                 except Exception:
                     pass
-                _thread_local.connection = duckdb.connect(self.db_path)
+                _thread_local.connection = duckdb.connect(
+                    self.db_path, read_only=self.read_only
+                )
         return _thread_local.connection
 
     def _create_tables(self):
@@ -239,6 +245,15 @@ class DevTrackDB:
         result = self.conn.execute("SELECT COUNT(*) FROM request_logs").fetchone()
         return result[0]
 
+    def tables_exist(self) -> bool:
+        """Check if database tables exist (read-only check)."""
+        try:
+            # Try to query the table - will fail if it doesn't exist
+            self.conn.execute("SELECT 1 FROM request_logs LIMIT 1")
+            return True
+        except Exception:
+            return False
+
     def get_logs_by_path(
         self, path_pattern: str, limit: Optional[int] = None
     ) -> List[Dict[str, Any]]:
@@ -408,6 +423,19 @@ class DevTrackDB:
         self.conn.execute("DELETE FROM request_logs")
 
         return count_before
+
+    def reset_sequence(self) -> None:
+        """Reset the sequence to start from 1."""
+        try:
+            # Try to reset the sequence
+            self.conn.execute("ALTER SEQUENCE seq_log_id RESTART WITH 1")
+        except Exception:
+            # If sequence doesn't exist or can't be reset, try to recreate it
+            try:
+                self.conn.execute("DROP SEQUENCE IF EXISTS seq_log_id")
+                self.conn.execute("CREATE SEQUENCE seq_log_id START 1")
+            except Exception:
+                pass  # Ignore if sequence operations fail
 
     def delete_logs_by_path(self, path_pattern: str) -> int:
         """Delete logs filtered by path pattern."""
@@ -888,30 +916,61 @@ class DevTrackDB:
 
     def close(self):
         """Close the database connection."""
-        self.conn.close()
+        if (
+            hasattr(_thread_local, "connection")
+            and _thread_local.connection is not None
+        ):
+            try:
+                _thread_local.connection.close()
+            except Exception:
+                pass
+            _thread_local.connection = None
 
     def __del__(self):
         """Ensure connection is closed when object is destroyed."""
-        if hasattr(self, "conn"):
-            self.close()
+        # Don't access self.conn property here as it may try to create a new connection
+        # Instead, directly check and close thread-local connection
+        if (
+            hasattr(_thread_local, "connection")
+            and _thread_local.connection is not None
+        ):
+            try:
+                _thread_local.connection.close()
+            except Exception:
+                pass
+            _thread_local.connection = None
 
 
 # Global database instance
 _db_instance: Optional[DevTrackDB] = None
 
 
-def get_db() -> DevTrackDB:
+def get_db(read_only: bool = True) -> DevTrackDB:
     """Get the global database instance."""
     global _db_instance
+    # If instance exists but has different read_only setting, recreate it
+    # BUT: If we have an existing instance with write access, we can use it
+    # for reads too (DuckDB allows read operations on write connections)
+    if _db_instance is not None:
+        if _db_instance.read_only != read_only:
+            # If existing instance is write mode and we need read, we can use it
+            if not _db_instance.read_only and read_only:
+                # Use existing write connection for read operations
+                # (allowed by DuckDB)
+                return _db_instance
+            # If existing instance is read-only and we need write, recreate
+            elif _db_instance.read_only and not read_only:
+                _db_instance.close()
+                _db_instance = None
     if _db_instance is None:
-        _db_instance = DevTrackDB()
+        _db_instance = DevTrackDB(read_only=read_only)
     return _db_instance
 
 
-def init_db(db_path: str = "devtrack_logs.db"):
+def init_db(db_path: str = "devtrack_logs.db", read_only: bool = True):
     """Initialize the database with a custom path."""
     global _db_instance
     if _db_instance:
         _db_instance.close()
-    _db_instance = DevTrackDB(db_path)
+    _db_instance = DevTrackDB(db_path, read_only=read_only)
     return _db_instance

@@ -16,7 +16,7 @@ def get_db_instance() -> DevTrackDB:
     """Get the database instance from middleware"""
     if DevTrackDjangoMiddleware._db_instance is None:
         db_path = getattr(settings, "DEVTRACK_DB_PATH", "devtrack_logs.db")
-        DevTrackDjangoMiddleware._db_instance = DevTrackDB(db_path)
+        DevTrackDjangoMiddleware._db_instance = DevTrackDB(db_path, read_only=False)
     return DevTrackDjangoMiddleware._db_instance
 
 

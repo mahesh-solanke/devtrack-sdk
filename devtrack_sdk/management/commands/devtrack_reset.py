@@ -39,7 +39,7 @@ class Command(BaseCommand):
                 return
 
         try:
-            db = DevTrackDB(db_path)
+            db = DevTrackDB(db_path, read_only=False)
             deleted_count = db.delete_all_logs()
 
             self.stdout.write(

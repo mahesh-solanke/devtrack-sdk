@@ -41,12 +41,20 @@ class DevTrackDjangoMiddleware(MiddlewareMixin):
         if exclude_path:
             self.skip_paths.extend(exclude_path)
 
-        # Initialize database if not already done
-        if DevTrackDjangoMiddleware._db_instance is None:
-            db_path = db_path or getattr(
-                settings, "DEVTRACK_DB_PATH", "devtrack_logs.db"
+        # Initialize database if not already done or if db_path is provided
+        # (db_path provided means we want to use a specific database)
+        final_db_path = db_path or getattr(
+            settings, "DEVTRACK_DB_PATH", "devtrack_logs.db"
+        )
+        if DevTrackDjangoMiddleware._db_instance is None or (
+            db_path and DevTrackDjangoMiddleware._db_instance.db_path != db_path
+        ):
+            # Close existing instance if switching databases
+            if DevTrackDjangoMiddleware._db_instance is not None:
+                DevTrackDjangoMiddleware._db_instance.close()
+            DevTrackDjangoMiddleware._db_instance = DevTrackDB(
+                final_db_path, read_only=False
             )
-            DevTrackDjangoMiddleware._db_instance = DevTrackDB(db_path)
 
         super().__init__(get_response)
 

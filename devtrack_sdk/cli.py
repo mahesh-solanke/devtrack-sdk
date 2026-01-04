@@ -1,9 +1,11 @@
 # devtrack_sdk/cli.py
 import json
 import os
+import re
 from datetime import datetime, timedelta
 from typing import Optional
 
+import duckdb
 import requests
 import typer
 from rich.console import Console
@@ -21,6 +23,19 @@ app = typer.Typer(
     add_completion=False,
     rich_markup_mode="rich",
 )
+
+
+def parse_lock_error(error_msg: str) -> dict:
+    """Extract PID and process info from DuckDB lock error."""
+    pid_match = re.search(r"PID (\d+)", error_msg)
+    process_match = re.search(r"held in ([^\s(]+)", error_msg)
+
+    return {
+        "pid": pid_match.group(1) if pid_match else None,
+        "process": process_match.group(1) if process_match else None,
+        "is_lock_error": "Conflicting lock" in error_msg
+        or "Could not set lock" in error_msg,
+    }
 
 
 def detect_devtrack_endpoint(timeout=0.5) -> str:
@@ -102,17 +117,178 @@ def version():
 def init(
     db_path: str = typer.Option("devtrack_logs.db", help="Path to the database file"),
     force: bool = typer.Option(
-        False, "--force", "-f", help="Force initialization even if database exists"
+        False,
+        "--force",
+        "-f",
+        help="Reset database: delete all logs and reset sequence to 0",
     ),
 ):
     """🗄️ Initialize a new DevTrack database with DuckDB backend."""
     console = Console()
+
+    # Step 1: Try read-only to check if already initialized
+    try:
+        db_readonly = DevTrackDB(db_path, read_only=True)
+        if db_readonly.tables_exist():
+            # Tables exist - check if we need to reset (--force)
+            db_readonly.close()
+
+            if force:
+                # --force specified: delete all logs and reset sequence
+                console.print("[yellow]🔄 Resetting database (--force specified)...[/]")
+
+                # Try HTTP API first if app is running
+                try:
+                    stats_url = detect_devtrack_endpoint(timeout=0.5)
+                    if stats_url:
+                        delete_url = stats_url.replace("/stats", "/logs?all_logs=true")
+                        console.print("[dim]App is running, using HTTP API...[/]")
+
+                        with Progress(
+                            SpinnerColumn(),
+                            TextColumn("[progress.description]{task.description}"),
+                            console=console,
+                        ) as progress:
+                            task = progress.add_task(
+                                "Resetting database via API...", total=None
+                            )
+                            response = requests.delete(delete_url, timeout=10)
+                            progress.update(
+                                task, description="✅ Database reset successfully!"
+                            )
+
+                        if response.status_code == 200:
+                            result = response.json()
+                            deleted_count = result.get("deleted_count", 0)
+                            console.print(
+                                f"[bold green]✅ Database reset complete via API. "
+                                f"Deleted {deleted_count} log entries.[/]"
+                            )
+                            console.print(
+                                "[dim]   Note: Sequence will reset automatically "
+                                "on next insert[/]"
+                            )
+                            raise typer.Exit(0)
+                        else:
+                            console.print(
+                                f"[yellow]API returned status {response.status_code}, "
+                                f"trying direct access...[/]"
+                            )
+                except typer.Exit:
+                    # Re-raise typer.Exit to allow proper exit
+                    raise
+                except requests.RequestException:
+                    # App not running or API not available - continue to direct access
+                    pass
+                except Exception as e:
+                    console.print(
+                        f"[yellow]API call failed: {e}, trying direct access...[/]"
+                    )
+                    pass
+
+                # Direct database access to delete logs and reset sequence
+                try:
+                    with Progress(
+                        SpinnerColumn(),
+                        TextColumn("[progress.description]{task.description}"),
+                        console=console,
+                    ) as progress:
+                        task = progress.add_task("Resetting database...", total=None)
+                        db_reset = DevTrackDB(db_path, read_only=False)
+                        deleted_count = db_reset.delete_all_logs()
+                        db_reset.reset_sequence()
+                        db_reset.close()
+                        progress.update(
+                            task, description="✅ Database reset successfully!"
+                        )
+
+                    console.print(
+                        f"[bold green]✅ Database reset complete. "
+                        f"Deleted {deleted_count} log entries and reset sequence.[/]"
+                    )
+                    raise typer.Exit(0)
+                except duckdb.IOException as e:
+                    error_msg = str(e)
+                    lock_info = parse_lock_error(error_msg)
+
+                    if lock_info["is_lock_error"]:
+                        console.print(
+                            "[red]❌ Database is locked by another process[/]"
+                        )
+                        if lock_info["pid"]:
+                            pid = lock_info["pid"]
+                            console.print(f"[yellow]   Locked by process: PID {pid}[/]")
+                        console.print(
+                            "[yellow]💡 Stop your application and try again[/]"
+                        )
+                    else:
+                        console.print(f"[red]❌ Failed to reset database:[/] {e}")
+                    raise typer.Exit(1)
+                except Exception as e:
+                    console.print(f"[red]❌ Failed to reset database:[/] {e}")
+                    raise typer.Exit(1)
+            else:
+                # No force - just show that it's already initialized
+                console.print(
+                    f"[bold green]✅ Database already initialized at:[/] {db_path}"
+                )
+
+                # Show database info
+                try:
+                    db_info = DevTrackDB(db_path, read_only=True)
+                    stats = db_info.get_stats_summary()
+                    db_info.close()
+
+                    table = Table(title="Database Information", border_style="green")
+                    table.add_column("Property", style="cyan")
+                    table.add_column("Value", style="green")
+                    table.add_row("Database Path", db_path)
+                    table.add_row("Total Requests", str(stats.get("total_requests", 0)))
+                    table.add_row(
+                        "Unique Endpoints", str(stats.get("unique_endpoints", 0))
+                    )
+                    avg_duration = stats.get("avg_duration_ms", 0) or 0
+                    table.add_row("Average Duration", f"{avg_duration:.2f} ms")
+                    console.print(table)
+                except Exception:
+                    pass  # Ignore errors when showing info
+
+                raise typer.Exit(0)
+        db_readonly.close()
+    except typer.Exit:
+        # Re-raise typer.Exit to allow proper exit
+        raise
+    except duckdb.IOException:
+        # Can't open read-only - might be locked, but continue to try write
+        pass
+    except Exception:
+        # Other errors - continue to try write
+        pass
+
+    # Check if tables exist before trying to create them
+    # (This handles the case where tables exist but we couldn't check
+    # read-only due to lock)
+    tables_already_exist = False
+    try:
+        db_check = DevTrackDB(db_path, read_only=True)
+        tables_already_exist = db_check.tables_exist()
+        db_check.close()
+        if tables_already_exist and not force:
+            # Tables exist and no force - already initialized
+            console.print(
+                f"[bold green]✅ Database already initialized at:[/] {db_path}"
+            )
+            raise typer.Exit(0)
+    except (duckdb.IOException, Exception):
+        # Can't check - continue to try creating tables
+        pass
 
     if os.path.exists(db_path) and not force:
         if not Confirm.ask(f"Database '{db_path}' already exists. Overwrite?"):
             console.print("[yellow]Initialization cancelled.[/]")
             raise typer.Exit(0)
 
+    # Step 2: Try write mode to create tables
     try:
         with Progress(
             SpinnerColumn(),
@@ -120,7 +296,7 @@ def init(
             console=console,
         ) as progress:
             task = progress.add_task("Initializing database...", total=None)
-            db = init_db(db_path)
+            db = init_db(db_path, read_only=False)
             progress.update(task, description="✅ Database initialized successfully!")
 
         console.print(f"[bold green]✅ DevTrack database initialized at:[/] {db_path}")
@@ -138,7 +314,25 @@ def init(
         table.add_row("Average Duration", f"{avg_duration:.2f} ms")
 
         console.print(table)
+        db.close()
 
+    except duckdb.IOException as e:
+        error_msg = str(e)
+        lock_info = parse_lock_error(error_msg)
+
+        if lock_info["is_lock_error"]:
+            console.print("[yellow]⚠️  Cannot create tables (database is locked)[/]")
+            if lock_info["pid"]:
+                console.print(f"[dim]   Locked by process: PID {lock_info['pid']}[/]")
+            console.print(
+                "[dim]   Your application may auto-initialize on first request[/]"
+            )
+            console.print("[dim]   Or stop the app and run this command again[/]")
+            # Don't fail - let app handle initialization
+            raise typer.Exit(0)
+        else:
+            console.print(f"[red]❌ Failed to initialize database:[/] {e}")
+            raise typer.Exit(1)
     except Exception as e:
         console.print(f"[red]❌ Failed to initialize database:[/] {e}")
         raise typer.Exit(1)
@@ -164,6 +358,48 @@ def reset(
             console.print("[yellow]Reset cancelled.[/]")
             raise typer.Exit(0)
 
+    # Step 1: Try to use HTTP API if app is running
+    try:
+        stats_url = detect_devtrack_endpoint(timeout=0.5)
+        if stats_url:
+            # App is running - use HTTP API
+            delete_url = stats_url.replace("/stats", "/logs?all_logs=true")
+            console.print("[dim]App is running, using HTTP API...[/]")
+
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+            ) as progress:
+                task = progress.add_task("Resetting database via API...", total=None)
+                response = requests.delete(delete_url, timeout=10)
+                progress.update(task, description="✅ Database reset successfully!")
+
+            if response.status_code == 200:
+                result = response.json()
+                deleted_count = result.get("deleted_count", 0)
+                console.print(
+                    f"[bold green]✅ Database reset complete via API. "
+                    f"Deleted {deleted_count} log entries.[/]"
+                )
+                raise typer.Exit(0)
+            else:
+                status = response.status_code
+                console.print(
+                    f"[yellow]API returned status {status}, "
+                    f"trying direct access...[/]"
+                )
+    except requests.RequestException:
+        # App not running or API not available - continue to direct access
+        pass
+    except typer.Exit:
+        # Re-raise typer.Exit to allow proper exit
+        raise
+    except Exception as e:
+        console.print(f"[yellow]API call failed: {e}, trying direct access...[/]")
+        pass
+
+    # Step 2: Direct database access (app not running or API failed)
     try:
         with Progress(
             SpinnerColumn(),
@@ -171,8 +407,9 @@ def reset(
             console=console,
         ) as progress:
             task = progress.add_task("Resetting database...", total=None)
-            db = DevTrackDB(db_path)
+            db = DevTrackDB(db_path, read_only=False)
             deleted_count = db.delete_all_logs()
+            db.close()
             progress.update(task, description="✅ Database reset successfully!")
 
         console.print(
@@ -180,6 +417,33 @@ def reset(
             f"Deleted {deleted_count} log entries.[/]"
         )
 
+    except duckdb.IOException as e:
+        error_msg = str(e)
+        lock_info = parse_lock_error(error_msg)
+
+        if lock_info["is_lock_error"]:
+            console.print("[red]❌ Database is locked by another process[/]")
+            if lock_info["pid"]:
+                console.print(
+                    f"[yellow]   Locked by process: PID {lock_info['pid']}[/]"
+                )
+
+            console.print("\n[bold yellow]💡 Solutions:[/]")
+            console.print(
+                "   1. [cyan]Stop your application[/] (the process holding the lock)"
+            )
+            console.print("   2. [cyan]Then run this command again[/]")
+            console.print("   3. [cyan]Or use the HTTP API endpoint:[/]")
+            try:
+                stats_url = detect_devtrack_endpoint()
+                if stats_url:
+                    delete_url = stats_url.replace("/stats", "/logs?all_logs=true")
+                    console.print(f"      [dim]DELETE {delete_url}[/]")
+            except Exception:
+                pass
+        else:
+            console.print(f"[red]❌ Failed to reset database:[/] {e}")
+        raise typer.Exit(1)
     except Exception as e:
         console.print(f"[red]❌ Failed to reset database:[/] {e}")
         raise typer.Exit(1)
@@ -209,7 +473,7 @@ def export(
         ) as progress:
             task = progress.add_task("Exporting logs...", total=None)
 
-            db = DevTrackDB(db_path)
+            db = DevTrackDB(db_path, read_only=True)
 
             # Get logs based on filters
             if path_pattern:
@@ -222,6 +486,13 @@ def export(
             progress.update(task, description="Writing to file...")
 
             if format.lower() == "json":
+                # Convert datetime objects to ISO format strings for JSON serialization
+                def json_serializer(obj):
+                    """JSON serializer for objects not serializable by default."""
+                    if isinstance(obj, datetime):
+                        return obj.isoformat()
+                    raise TypeError(f"Type {type(obj)} not serializable")
+
                 with open(output_file, "w") as f:
                     json.dump(
                         {
@@ -236,6 +507,7 @@ def export(
                         },
                         f,
                         indent=2,
+                        default=json_serializer,
                     )
             elif format.lower() == "csv":
                 import csv
@@ -284,7 +556,7 @@ def query(
         ) as progress:
             task = progress.add_task("Querying logs...", total=None)
 
-            db = DevTrackDB(db_path)
+            db = DevTrackDB(db_path, read_only=True)
 
             # Get logs based on filters
             if path_pattern:
@@ -363,113 +635,6 @@ def query(
 
 
 @app.command()
-def monitor(
-    db_path: str = typer.Option("devtrack_logs.db", help="Path to the database file"),
-    interval: int = typer.Option(5, help="Refresh interval in seconds"),
-    top: int = typer.Option(10, help="Show top N endpoints"),
-):
-    """📊 Monitor DevTrack logs in real-time with live dashboard."""
-    console = Console()
-
-    if not os.path.exists(db_path):
-        console.print(f"[red]Database '{db_path}' does not exist.[/]")
-        raise typer.Exit(1)
-
-    console.print("[bold green]🔍 Starting real-time monitoring...[/]")
-    console.print(
-        f"[dim]Refresh interval: {interval} seconds | Press Ctrl+C to stop[/]"
-    )
-
-    try:
-        db = DevTrackDB(db_path)
-        last_count = 0
-
-        while True:
-            try:
-                # Clear screen
-                console.clear()
-
-                # Get current stats
-                stats = db.get_stats_summary()
-                current_count = stats.get("total_requests", 0)
-                new_requests = current_count - last_count
-
-                # Header
-                console.rule(
-                    f"[bold green]📊 DevTrack Real-time Monitor[/] | "
-                    f"[dim]{datetime.now().strftime('%H:%M:%S')}[/]",
-                    style="green",
-                )
-
-                # Summary stats
-                summary_table = Table(title="Live Statistics", border_style="green")
-                summary_table.add_column("Metric", style="cyan")
-                summary_table.add_column("Value", style="green")
-
-                summary_table.add_row("Total Requests", str(current_count))
-                summary_table.add_row("New Requests (last interval)", str(new_requests))
-                summary_table.add_row(
-                    "Unique Endpoints", str(stats.get("unique_endpoints", 0))
-                )
-                avg_duration = stats.get("avg_duration_ms", 0) or 0
-                summary_table.add_row("Avg Duration", f"{avg_duration:.2f} ms")
-                success_count = stats.get("success_count", 0) or 0
-                summary_table.add_row(
-                    "Success Rate",
-                    f"{success_count / max(current_count, 1) * 100:.1f}%",
-                )
-
-                console.print(summary_table)
-
-                # Recent logs
-                recent_logs = db.get_all_logs(limit=top)
-                if recent_logs:
-                    console.rule("[bold cyan]📈 Recent Activity[/]", style="cyan")
-                    recent_table = Table(border_style="blue")
-                    recent_table.add_column("Time", style="dim")
-                    recent_table.add_column("Path", style="cyan")
-                    recent_table.add_column("Method", style="green")
-                    recent_table.add_column("Status", justify="center", style="yellow")
-                    recent_table.add_column(
-                        "Duration", justify="right", style="magenta"
-                    )
-
-                    for log in recent_logs[:top]:
-                        timestamp = log.get("timestamp", "")[
-                            :19
-                        ]  # Show only date and time
-                        recent_table.add_row(
-                            timestamp,
-                            log.get("path", "N/A"),
-                            log.get("method", "N/A"),
-                            str(log.get("status_code", "N/A")),
-                            f"{log.get('duration_ms', 0):.2f} ms",
-                        )
-
-                    console.print(recent_table)
-
-                last_count = current_count
-
-                # Wait for next interval
-                import time as time_module
-
-                time_module.sleep(interval)
-
-            except KeyboardInterrupt:
-                console.print("\n[yellow]Monitoring stopped by user.[/]")
-                break
-            except Exception as e:
-                console.print(f"[red]Error during monitoring: {e}[/]")
-                import time as time_module
-
-                time_module.sleep(interval)
-
-    except Exception as e:
-        console.print(f"[red]❌ Failed to start monitoring:[/] {e}")
-        raise typer.Exit(1)
-
-
-@app.command()
 def stat(
     top: int = typer.Option(None, help="Show top N endpoints"),
     sort_by: str = typer.Option("hits", help="Sort by 'hits' or 'latency'"),
@@ -502,7 +667,7 @@ def stat(
             raise typer.Exit(1)
 
         try:
-            db = DevTrackDB(db_path)
+            db = DevTrackDB(db_path, read_only=True)
             entries = db.get_all_logs()
         except Exception as e:
             console.print(f"[red]❌ Failed to read database:[/] {e}")
@@ -682,7 +847,7 @@ def health(
     # Check database
     if os.path.exists(db_path):
         try:
-            db = DevTrackDB(db_path)
+            db = DevTrackDB(db_path, read_only=True)
             stats = db.get_stats_summary()
             health_status["checks"].append(
                 {
@@ -780,7 +945,6 @@ def show_help():
     console.print("[bold green]Quick Start:[/]")
     console.print("  [cyan]devtrack init[/]     # Initialize database")
     console.print("  [cyan]devtrack stat[/]     # View statistics")
-    console.print("  [cyan]devtrack monitor[/]  # Real-time monitoring")
     console.print()
 
     # Commands overview
@@ -802,9 +966,6 @@ def show_help():
         "query", "🔍 Query DevTrack logs with advanced filtering and search"
     )
     commands_table.add_row(
-        "monitor", "📊 Monitor DevTrack logs in real-time with live dashboard"
-    )
-    commands_table.add_row(
         "stat", "📈 Display comprehensive API statistics and endpoint analytics"
     )
     commands_table.add_row(
@@ -818,9 +979,6 @@ def show_help():
     console.print("[bold green]Examples:[/]")
     console.print("  [dim]# Initialize database[/]")
     console.print("  [cyan]devtrack init --force[/]")
-    console.print()
-    console.print("  [dim]# Real-time monitoring[/]")
-    console.print("  [cyan]devtrack monitor --interval 3 --top 15[/]")
     console.print()
     console.print("  [dim]# Query logs with filters[/]")
     console.print("  [cyan]devtrack query --status-code 404 --days 7 --verbose[/]")
@@ -845,10 +1003,6 @@ def show_help():
     console.print(
         "  [dim]GitHub:[/] [blue]https://github.com/mahesh-solanke/devtrack-sdk[/]"
     )
-    console.print(
-        "  [dim]Documentation:[/] [blue]https://devtrack-sdk.readthedocs.io[/]"
-    )
-    console.print()
 
 
 @app.command()

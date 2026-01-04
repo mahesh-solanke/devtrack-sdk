@@ -50,7 +50,7 @@ class DevTrackMiddleware(BaseHTTPMiddleware):
 
         try:
             log_data = await extract_devtrack_log_data(request, response, start_time)
-            db = self.db_instance if self.db_instance else get_db()
+            db = self.db_instance if self.db_instance else get_db(read_only=False)
             db.insert_log(log_data)
         except Exception as e:
             print(f"[DevTrackMiddleware] Logging error: {e}")

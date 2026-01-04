@@ -46,3 +46,10 @@ devtrack = "devtrack_sdk.cli:app"
 
 [tool.isort]
 profile = "black"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+norecursedirs = [".git", ".venv", "venv", "__pycache__", "*.egg"]

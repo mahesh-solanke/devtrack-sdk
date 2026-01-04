@@ -4,6 +4,7 @@ Tests for Django integration
 
 import json
 import os
+import tempfile
 from datetime import datetime, timezone
 from unittest.mock import Mock, patch
 
@@ -25,7 +26,29 @@ class DevTrackDjangoMiddlewareTest(TestCase):
         self.factory = RequestFactory()
         # Create a mock get_response function
         self.mock_get_response = Mock()
-        self.middleware = DevTrackDjangoMiddleware(self.mock_get_response)
+        # Use a temporary database file to avoid lock conflicts
+        self.temp_db = tempfile.mktemp(suffix=".db")
+        # Reset the middleware's database instance to use temp file
+        if DevTrackDjangoMiddleware._db_instance is not None:
+            DevTrackDjangoMiddleware._db_instance.close()
+        DevTrackDjangoMiddleware._db_instance = None
+        # Create middleware with temp database path
+        self.middleware = DevTrackDjangoMiddleware(
+            self.mock_get_response, db_path=self.temp_db
+        )
+
+    def tearDown(self):
+        """Clean up temporary database file"""
+        # Close and clean up database instance
+        if DevTrackDjangoMiddleware._db_instance:
+            DevTrackDjangoMiddleware._db_instance.close()
+            DevTrackDjangoMiddleware._db_instance = None
+        # Remove temp file if it exists
+        if os.path.exists(self.temp_db):
+            try:
+                os.unlink(self.temp_db)
+            except OSError:
+                pass
 
     def test_middleware_initialization(self):
         """Test middleware initializes correctly"""
@@ -92,8 +115,11 @@ class DevTrackDjangoMiddlewareTest(TestCase):
 
     def test_custom_exclude_paths(self):
         """Test custom exclude paths functionality"""
+        # Use the same temp database for consistency
         custom_middleware = DevTrackDjangoMiddleware(
-            self.mock_get_response, exclude_path=["/custom/path/"]
+            self.mock_get_response,
+            exclude_path=["/custom/path/"],
+            db_path=self.temp_db,
         )
         self.assertIn("/custom/path/", custom_middleware.skip_paths)
 
@@ -104,8 +130,22 @@ class DevTrackDjangoViewsTest(TestCase):
     def setUp(self):
         self.factory = RequestFactory()
         # Clear database before each test to avoid test data interference
-        if DevTrackDjangoMiddleware._db_instance is not None:
-            DevTrackDjangoMiddleware._db_instance.delete_all_logs()
+        # Ensure database instance exists and is in write mode
+        if DevTrackDjangoMiddleware._db_instance is None:
+            import tempfile
+
+            from devtrack_sdk.database import DevTrackDB
+
+            db_path = tempfile.mktemp(suffix=".db")
+            DevTrackDjangoMiddleware._db_instance = DevTrackDB(db_path, read_only=False)
+        # Ensure it's not read-only (recreate if needed)
+        if DevTrackDjangoMiddleware._db_instance.read_only:
+            db_path = DevTrackDjangoMiddleware._db_instance.db_path
+            DevTrackDjangoMiddleware._db_instance.close()
+            from devtrack_sdk.database import DevTrackDB
+
+            DevTrackDjangoMiddleware._db_instance = DevTrackDB(db_path, read_only=False)
+        DevTrackDjangoMiddleware._db_instance.delete_all_logs()
 
     def test_stats_view(self):
         """Test stats view returns correct format"""
