@@ -375,25 +375,31 @@ def test_init_with_force_via_api():
 
 
 def test_init_locked_database():
-    """Test init when database is locked."""
+    """Test init when database is locked during initialization."""
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
         db_path = tmp.name
-        os.unlink(db_path)  # Remove empty file
+        os.unlink(db_path)  # Remove empty file - start with no database
 
     try:
-        # Create database first
-        db = init_db(db_path, read_only=False)
-        db.close()
-
-        # Now simulate lock error when trying to init again
+        # Simulate lock error when trying to create/initialize database
         import duckdb
 
-        lock_error = duckdb.IOException("IO Error: Could not set lock on file")
+        lock_error = duckdb.IOException(
+            "IO Error: Could not set lock on file: "
+            "Conflicting lock (held in process with PID 12345)"
+        )
 
-        with patch("devtrack_sdk.cli.init_db", side_effect=lock_error):
-            result = runner.invoke(app, ["init", "--db-path", db_path])
-            # Should handle lock gracefully
-            assert "lock" in result.output.lower() or result.exit_code == 0
+        # Mock init_db to raise lock error (this is called when
+        # actually creating tables)
+        # Also mock detect_devtrack_endpoint to return None (no API available)
+        with patch("devtrack_sdk.cli.detect_devtrack_endpoint", return_value=None):
+            with patch("devtrack_sdk.cli.init_db", side_effect=lock_error):
+                result = runner.invoke(app, ["init", "--db-path", db_path])
+                # Should handle lock gracefully - show lock message
+                assert (
+                    "lock" in result.output.lower() or "locked" in result.output.lower()
+                )
+                assert result.exit_code == 0  # Should exit gracefully, not crash
     finally:
         if os.path.exists(db_path):
             os.unlink(db_path)
