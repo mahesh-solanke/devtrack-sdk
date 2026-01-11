@@ -23,12 +23,15 @@ def app_with_middleware():
     if os.path.exists(db_path):
         os.unlink(db_path)
 
-    init_db(db_path)
+    db = init_db(db_path, read_only=False)  # Write mode for middleware
 
     app = FastAPI()
     app.include_router(devtrack_router)
-    db = get_db()
     app.add_middleware(DevTrackMiddleware, db_instance=db)
+
+    # Store db in app state so tests can access it
+    app.state.db = db
+    app.state.db_path = db_path
 
     @app.get("/")
     async def root():
@@ -55,18 +58,22 @@ def app_with_middleware():
 
     # Cleanup
     try:
-        db = get_db()
-        db.close()
-        if os.path.exists(db_path):
-            os.unlink(db_path)
+        if hasattr(app.state, "db"):
+            app.state.db.close()
+        if hasattr(app.state, "db_path") and os.path.exists(app.state.db_path):
+            os.unlink(app.state.db_path)
     except Exception:
         pass
 
 
-def clear_db_logs():
+def clear_db_logs(app=None):
     """Clear all logs from the database."""
     try:
-        db = get_db()
+        if app and hasattr(app.state, "db"):
+            # Use the db instance from app state if available
+            db = app.state.db
+        else:
+            db = get_db(read_only=False)  # Need write access to delete logs
         db.delete_all_logs()
     except Exception:
         # Database might be closed, ignore
@@ -76,7 +83,7 @@ def clear_db_logs():
 def test_traffic_metrics_endpoint(app_with_middleware):
     """Test /__devtrack__/metrics/traffic endpoint."""
     client = TestClient(app_with_middleware)
-    clear_db_logs()
+    clear_db_logs(app_with_middleware)
 
     # Generate some traffic
     for _ in range(5):
@@ -109,7 +116,7 @@ def test_traffic_metrics_endpoint(app_with_middleware):
 def test_error_metrics_endpoint(app_with_middleware):
     """Test /__devtrack__/metrics/errors endpoint."""
     client = TestClient(app_with_middleware)
-    clear_db_logs()
+    clear_db_logs(app_with_middleware)
 
     # Generate some requests with errors
     client.get("/error")  # 404
@@ -149,7 +156,7 @@ def test_error_metrics_endpoint(app_with_middleware):
 def test_performance_metrics_endpoint(app_with_middleware):
     """Test /__devtrack__/metrics/perf endpoint."""
     client = TestClient(app_with_middleware)
-    clear_db_logs()
+    clear_db_logs(app_with_middleware)
 
     # Generate requests with varying latencies
     client.get("/")  # Fast
@@ -189,7 +196,7 @@ def test_performance_metrics_endpoint(app_with_middleware):
 def test_consumers_endpoint(app_with_middleware):
     """Test /__devtrack__/consumers endpoint."""
     client = TestClient(app_with_middleware)
-    clear_db_logs()
+    clear_db_logs(app_with_middleware)
 
     # Generate requests with different user agents (to simulate different consumers)
     client.get("/", headers={"User-Agent": "Consumer1/1.0"})
@@ -258,7 +265,7 @@ def test_dashboard_assets_endpoint(app_with_middleware):
 def test_metrics_endpoints_with_no_data(app_with_middleware):
     """Test metrics endpoints with empty database."""
     client = TestClient(app_with_middleware)
-    clear_db_logs()
+    clear_db_logs(app_with_middleware)
 
     # All endpoints should return empty data, not errors
     endpoints = [
@@ -293,7 +300,7 @@ def test_metrics_endpoints_error_handling(app_with_middleware):
 def test_integrated_metrics_workflow(app_with_middleware):
     """Test complete workflow: generate traffic, then check all metrics."""
     client = TestClient(app_with_middleware)
-    clear_db_logs()
+    clear_db_logs(app_with_middleware)
 
     # Generate diverse traffic
     client.get("/")  # Success

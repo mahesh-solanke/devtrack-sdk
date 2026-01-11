@@ -9,10 +9,14 @@ from devtrack_sdk.database import get_db, init_db
 from devtrack_sdk.middleware.base import DevTrackMiddleware
 
 
-def clear_db_logs():
+def clear_db_logs(app=None):
     """Clear all logs from the database for testing."""
     try:
-        db = get_db()
+        if app and hasattr(app.state, "db"):
+            # Use the db instance from app state if available
+            db = app.state.db
+        else:
+            db = get_db(read_only=False)  # Need write access to delete logs
         db.delete_all_logs()
     except Exception:
         # Database might be closed, ignore
@@ -32,13 +36,16 @@ def app_with_middleware():
     if os.path.exists(db_path):
         os.unlink(db_path)
 
-    # Initialize database with temporary file
-    init_db(db_path)
+    # Initialize database with temporary file (write mode for middleware)
+    db = init_db(db_path, read_only=False)
 
     app = FastAPI()
     app.include_router(devtrack_router)
-    db = get_db()
     app.add_middleware(DevTrackMiddleware, db_instance=db)
+
+    # Store db in app state so tests can access it
+    app.state.db = db
+    app.state.db_path = db_path
 
     @app.get("/")
     async def root():
@@ -79,12 +86,13 @@ def app_with_middleware():
 
 def test_root_logging(app_with_middleware):
     client = TestClient(app_with_middleware)
-    clear_db_logs()
+    clear_db_logs(app_with_middleware)
 
     response = client.get("/")
     assert response.status_code == 200
 
-    db = get_db()
+    # Use the same db instance that middleware uses
+    db = app_with_middleware.state.db
     logs = db.get_all_logs()
     assert len(logs) == 1
     log_entry = logs[0]
@@ -106,7 +114,8 @@ def test_error_logging(app_with_middleware):
     response = client.get("/error")
     assert response.status_code == 400
 
-    db = get_db()
+    # Use the same db instance that middleware uses
+    db = app_with_middleware.state.db
     logs = db.get_all_logs()
     assert len(logs) == 1
     log_entry = logs[0]
@@ -127,7 +136,8 @@ def test_post_request_logging(app_with_middleware):
     response = client.post("/users", json={"name": "Test User"})
     assert response.status_code == 200
 
-    db = get_db()
+    # Use the same db instance that middleware uses
+    db = app_with_middleware.state.db
     logs = db.get_all_logs()
     assert len(logs) == 1
     log_entry = logs[0]
@@ -182,7 +192,8 @@ def test_excluded_paths_not_logged(app_with_middleware):
     client.get("/redoc")
     client.get("/openapi.json")
 
-    db = get_db()
+    # Use the same db instance that middleware uses
+    db = app_with_middleware.state.db
     logs = db.get_all_logs()
     assert len(logs) == 0
 
@@ -204,7 +215,8 @@ def test_path_pattern_normalization(app_with_middleware):
     response = client.get("/users/123/profile")
     assert response.status_code == 200
 
-    db = get_db()
+    # Use the same db instance that middleware uses
+    db = app_with_middleware.state.db
     logs = db.get_all_logs()
     assert len(logs) == 1
     log_entry = logs[0]
@@ -235,7 +247,8 @@ def test_middleware_logging(app_with_middleware):
     response = client.get("/")
     assert response.status_code == 200
 
-    db = get_db()
+    # Use the same db instance that middleware uses
+    db = app_with_middleware.state.db
     logs = db.get_all_logs()
     assert len(logs) == 1
     assert logs[0]["status_code"] == 200
@@ -286,7 +299,8 @@ def test_delete_all_logs(app_with_middleware):
     client.post("/users", json={"name": "Test User"})
     client.get("/error")
 
-    db = get_db()
+    # Use the same db instance that middleware uses
+    db = app_with_middleware.state.db
     logs = db.get_all_logs()
     assert len(logs) == 3
 
@@ -313,7 +327,8 @@ def test_delete_logs_by_status_code(app_with_middleware):
     client.post("/users", json={"name": "Test User"})  # 200
     client.get("/error")  # 400
 
-    db = get_db()
+    # Use the same db instance that middleware uses
+    db = app_with_middleware.state.db
     logs = db.get_all_logs()
     assert len(logs) == 3
 
@@ -341,7 +356,8 @@ def test_delete_logs_by_path_pattern(app_with_middleware):
     client.post("/users", json={"name": "Test User"})
     client.get("/users/123/profile")
 
-    db = get_db()
+    # Use the same db instance that middleware uses
+    db = app_with_middleware.state.db
     logs = db.get_all_logs()
     assert len(logs) == 3
 
@@ -368,7 +384,8 @@ def test_delete_log_by_id(app_with_middleware):
     client.get("/")
     client.post("/users", json={"name": "Test User"})
 
-    db = get_db()
+    # Use the same db instance that middleware uses
+    db = app_with_middleware.state.db
     logs = db.get_all_logs()
     assert len(logs) == 2
 
@@ -399,7 +416,8 @@ def test_delete_logs_by_ids(app_with_middleware):
     client.post("/users", json={"name": "Test User"})
     client.get("/error")
 
-    db = get_db()
+    # Use the same db instance that middleware uses
+    db = app_with_middleware.state.db
     logs = db.get_all_logs()
     assert len(logs) == 3
 
@@ -429,7 +447,8 @@ def test_delete_logs_older_than(app_with_middleware):
     client.get("/")
     client.post("/users", json={"name": "Test User"})
 
-    db = get_db()
+    # Use the same db instance that middleware uses
+    db = app_with_middleware.state.db
     logs = db.get_all_logs()
     assert len(logs) == 2
 

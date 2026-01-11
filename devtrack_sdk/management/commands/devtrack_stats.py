@@ -33,7 +33,7 @@ class Command(BaseCommand):
         output_format = options["format"]
 
         try:
-            db = DevTrackDB(db_path)
+            db = DevTrackDB(db_path, read_only=True)
             stats = db.get_stats_summary()
             recent_logs = db.get_all_logs(limit=limit)
 

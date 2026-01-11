@@ -18,7 +18,7 @@ async def stats(
     status_code: Optional[int] = Query(None, description="Filter by status code"),
 ):
     """Get DevTrack statistics and logs from DuckDB."""
-    db = get_db()
+    db = get_db(read_only=True)
 
     try:
         # Get summary stats
@@ -62,7 +62,7 @@ async def delete_logs(
     ),
 ):
     """Delete logs from the database with various filtering options."""
-    db = get_db()
+    db = get_db(read_only=False)
 
     try:
         deleted_count = 0
@@ -105,7 +105,7 @@ async def delete_logs(
 @router.delete("/__devtrack__/logs/{log_id}", include_in_schema=False)
 async def delete_log_by_id(log_id: int):
     """Delete a specific log by its ID."""
-    db = get_db()
+    db = get_db(read_only=False)
 
     try:
         deleted_count = db.delete_logs_by_id(log_id)
@@ -131,7 +131,7 @@ async def metrics_traffic(
     hours: int = Query(24, description="Number of hours to look back"),
 ):
     """Get traffic metrics over time."""
-    db = get_db()
+    db = get_db(read_only=True)
     try:
         traffic_data = db.get_traffic_over_time(hours=hours)
         return {"traffic": traffic_data}
@@ -144,7 +144,7 @@ async def metrics_errors(
     hours: int = Query(24, description="Number of hours to look back"),
 ):
     """Get error trends and top failing routes."""
-    db = get_db()
+    db = get_db(read_only=True)
     try:
         error_data = db.get_error_trends(hours=hours)
         return error_data
@@ -157,7 +157,7 @@ async def metrics_perf(
     hours: int = Query(24, description="Number of hours to look back"),
 ):
     """Get performance metrics (p50/p95/p99 latency)."""
-    db = get_db()
+    db = get_db(read_only=True)
     try:
         perf_data = db.get_performance_metrics(hours=hours)
         return perf_data
@@ -170,7 +170,7 @@ async def consumers(
     hours: int = Query(24, description="Number of hours to look back"),
 ):
     """Get consumer segmentation data."""
-    db = get_db()
+    db = get_db(read_only=True)
     try:
         segments_data = db.get_consumer_segments(hours=hours)
         return segments_data
