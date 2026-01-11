@@ -1,0 +1,18 @@
+---
+alwaysApply: true
+---
+- The project is DevTrack: an open-source, lightweight API observability SDK for FastAPI and Django.
+- Design philosophy: zero-config, minimal overhead, developer-first experience.
+- Avoid suggestions that require external infrastructure unless absolutely necessary.
+- Prefer embedded, local, or in-process solutions over external services.
+- Keep runtime performance and request latency impact minimal.
+- Treat DevTrack as a library, not a SaaS product.
+- Favor simplicity over feature richness; fewer features done well is preferred.
+- All changes should align with observability needs: traffic, errors, latency, logs.
+- Avoid adding business, billing, or enterprise features.
+- Documentation should be simple, honest, and example-driven.
+- Code changes should be incremental and backward-compatible when possible.
+- Assume contributors may be first-time open-source contributors; keep things approachable.
+- If a proposed feature increases complexity without clear developer benefit, question it.
+- If a solution violates DevTrack’s zero-config philosophy, suggest alternatives.
+- If something feels premature for an early-stage open-source project, call it out.
