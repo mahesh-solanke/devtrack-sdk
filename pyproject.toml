@@ -22,13 +22,31 @@ classifiers = [
     "Operating System :: OS Independent"
 ]
 dependencies = [
-    "fastapi>=0.90",
-    "django>=4.0.0",
-    "httpx>=0.24",
-    "starlette>=0.22",
     "rich>=13.3",
+    "requests>=2.31",
     "typer>=0.9",
     "duckdb>=1.1.0"
+]
+
+[project.optional-dependencies]
+fastapi = [
+    "fastapi>=0.90"
+]
+django = [
+    "django>=4.0.0"
+]
+all = [
+    "fastapi>=0.90",
+    "django>=4.0.0"
+]
+dev = [
+    "django>=4.0.0",
+    "fastapi>=0.90",
+    "httpx>=0.24",
+    "pytest>=8.0",
+    "pytest-mock>=3.12",
+    "tomli>=2.0; python_version < '3.11'",
+    "uvicorn>=0.34"
 ]
 
 [tool.setuptools.packages.find]

@@ -1,12 +1,40 @@
-# DevTrack SDK - Request tracking middleware for FastAPI and Django
+"""DevTrack SDK - Request tracking middleware for FastAPI and Django."""
 
-from devtrack_sdk.controller import router as devtrack_router
-from devtrack_sdk.django_middleware import DevTrackDjangoMiddleware
-from devtrack_sdk.django_urls import devtrack_cbv_urlpatterns, devtrack_urlpatterns
-from devtrack_sdk.django_views import DevTrackView, stats_view, track_view
-from devtrack_sdk.middleware import DevTrackMiddleware
+from importlib import import_module
+
+from devtrack_sdk.__version__ import __version__
+
+_LAZY_EXPORTS = {
+    "DevTrackMiddleware": ("devtrack_sdk.middleware", "DevTrackMiddleware"),
+    "devtrack_router": ("devtrack_sdk.controller", "router"),
+    "DevTrackDjangoMiddleware": (
+        "devtrack_sdk.django_middleware",
+        "DevTrackDjangoMiddleware",
+    ),
+    "track_view": ("devtrack_sdk.django_views", "track_view"),
+    "stats_view": ("devtrack_sdk.django_views", "stats_view"),
+    "DevTrackView": ("devtrack_sdk.django_views", "DevTrackView"),
+    "devtrack_urlpatterns": ("devtrack_sdk.django_urls", "devtrack_urlpatterns"),
+    "devtrack_cbv_urlpatterns": (
+        "devtrack_sdk.django_urls",
+        "devtrack_cbv_urlpatterns",
+    ),
+}
+
+
+def __getattr__(name):
+    if name not in _LAZY_EXPORTS:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+    module_name, attribute_name = _LAZY_EXPORTS[name]
+    module = import_module(module_name)
+    attribute = getattr(module, attribute_name)
+    globals()[name] = attribute
+    return attribute
+
 
 __all__ = [
+    "__version__",
     # FastAPI
     "DevTrackMiddleware",
     "devtrack_router",

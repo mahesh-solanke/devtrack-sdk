@@ -72,7 +72,11 @@
 
 ### 1. Install DevTrack SDK
 ```bash
-pip install devtrack-sdk
+# FastAPI
+pip install "devtrack-sdk[fastapi]"
+
+# Django
+pip install "devtrack-sdk[django]"
 ```
 
 ### 2. Choose Your Framework
@@ -133,7 +137,17 @@ devtrack monitor --interval 3
 
 ### Install from PyPI
 ```bash
+# Core CLI/database only
 pip install devtrack-sdk
+
+# FastAPI integration
+pip install "devtrack-sdk[fastapi]"
+
+# Django integration
+pip install "devtrack-sdk[django]"
+
+# Both integrations
+pip install "devtrack-sdk[all]"
 ```
 
 ### Install from Source
@@ -144,13 +158,12 @@ pip install -e .
 ```
 
 ### Dependencies
-- `fastapi>=0.90` - FastAPI framework support
-- `django>=4.0.0` - Django framework support
-- `httpx>=0.24` - HTTP client for CLI
-- `starlette>=0.22` - ASGI framework
-- `rich>=13.3` - Rich CLI interface
-- `typer>=0.9` - CLI framework
 - `duckdb>=1.1.0` - Embedded database
+- `rich>=13.3` - Rich CLI interface
+- `requests>=2.31` - HTTP client for CLI
+- `typer>=0.9` - CLI framework
+- `fastapi>=0.90` - Optional FastAPI framework support via `devtrack-sdk[fastapi]`
+- `django>=4.0.0` - Optional Django framework support via `devtrack-sdk[django]`
 
 ---
 

@@ -51,7 +51,11 @@
 ### 1. Install DevTrack SDK
 
 ```bash
-pip install devtrack-sdk
+# FastAPI
+pip install "devtrack-sdk[fastapi]"
+
+# Django
+pip install "devtrack-sdk[django]"
 ```
 
 ### 2. Choose Your Framework

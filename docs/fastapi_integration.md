@@ -7,7 +7,7 @@ This guide shows you how to integrate DevTrack SDK v0.4.0 with your FastAPI appl
 ### 1. Installation
 
 ```bash
-pip install devtrack-sdk
+pip install "devtrack-sdk[fastapi]"
 ```
 
 ### 2. Initialize Database
@@ -456,7 +456,7 @@ LOG_LEVEL=INFO
 
 2. **Import errors**
    ```bash
-   pip install devtrack-sdk
+   pip install "devtrack-sdk[fastapi]"
    ```
 
 3. **Permission errors**

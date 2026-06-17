@@ -7,7 +7,7 @@ This guide shows you how to integrate DevTrack SDK v0.4.0 with your Django appli
 ### 1. Installation
 
 ```bash
-pip install devtrack-sdk
+pip install "devtrack-sdk[django]"
 ```
 
 ### 2. Initialize Database
@@ -576,7 +576,7 @@ LOG_LEVEL=INFO
 
 2. **Import errors**
    ```bash
-   pip install devtrack-sdk
+   pip install "devtrack-sdk[django]"
    ```
 
 3. **Permission errors**
