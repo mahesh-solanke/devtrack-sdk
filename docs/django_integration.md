@@ -10,6 +10,8 @@ This guide shows you how to integrate DevTrack SDK v0.4.0 with your Django appli
 pip install "devtrack-sdk[django]"
 ```
 
+DevTrack SDK is tested with Django 5.2 while keeping the Django dependency broad (`django>=4.0.0`) so existing Django 5.2 apps are not downgraded.
+
 ### 2. Initialize Database
 
 Initialize the DuckDB database for persistent log storage:

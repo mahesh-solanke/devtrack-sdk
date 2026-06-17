@@ -18,6 +18,8 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Framework :: FastAPI",
     "Framework :: Django",
+    "Framework :: Django :: 4.2",
+    "Framework :: Django :: 5.2",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent"
 ]

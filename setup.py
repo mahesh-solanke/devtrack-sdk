@@ -46,6 +46,8 @@ setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
         "Framework :: Django",
+        "Framework :: Django :: 4.2",
+        "Framework :: Django :: 5.2",
         "Framework :: FastAPI",
     ],
     entry_points={

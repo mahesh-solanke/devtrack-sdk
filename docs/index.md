@@ -58,6 +58,8 @@ pip install "devtrack-sdk[fastapi]"
 pip install "devtrack-sdk[django]"
 ```
 
+Django support is tested with Django 5.2 while remaining compatible with Django 4.0+.
+
 ### 2. Choose Your Framework
 
 #### FastAPI Integration

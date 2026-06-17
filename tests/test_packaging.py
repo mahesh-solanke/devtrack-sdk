@@ -30,13 +30,16 @@ def test_pyproject_keeps_frameworks_optional():
 
     core_dependencies = _requirement_names(pyproject["project"]["dependencies"])
     optional_dependencies = pyproject["project"]["optional-dependencies"]
+    classifiers = set(pyproject["project"]["classifiers"])
 
     assert FRAMEWORK_PACKAGES.isdisjoint(core_dependencies)
-    assert "fastapi" in _requirement_names(optional_dependencies["fastapi"])
-    assert "django" in _requirement_names(optional_dependencies["django"])
+    assert optional_dependencies["django"] == ["django>=4.0.0"]
+    assert optional_dependencies["fastapi"] == ["fastapi>=0.90"]
     assert {"fastapi", "django"}.issubset(
         _requirement_names(optional_dependencies["all"])
     )
+    assert "Framework :: Django :: 4.2" in classifiers
+    assert "Framework :: Django :: 5.2" in classifiers
 
 
 def test_setup_py_keeps_frameworks_optional():
@@ -50,11 +53,14 @@ def test_setup_py_keeps_frameworks_optional():
 
     install_requires = ast.literal_eval(setup_kwargs["install_requires"])
     extras_require = ast.literal_eval(setup_kwargs["extras_require"])
+    classifiers = ast.literal_eval(setup_kwargs["classifiers"])
 
     assert FRAMEWORK_PACKAGES.isdisjoint(_requirement_names(install_requires))
-    assert "fastapi" in _requirement_names(extras_require["fastapi"])
-    assert "django" in _requirement_names(extras_require["django"])
+    assert extras_require["django"] == ["django>=4.0.0"]
+    assert extras_require["fastapi"] == ["fastapi>=0.90"]
     assert {"fastapi", "django"}.issubset(_requirement_names(extras_require["all"]))
+    assert "Framework :: Django :: 4.2" in classifiers
+    assert "Framework :: Django :: 5.2" in classifiers
 
 
 def test_top_level_import_does_not_require_frameworks(monkeypatch):

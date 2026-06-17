@@ -134,6 +134,7 @@ devtrack monitor --interval 3
 ### Prerequisites
 - Python 3.10 or higher
 - FastAPI or Django application
+- Django integration is tested with Django 5.2 and remains compatible with Django 4.0+
 
 ### Install from PyPI
 ```bash
@@ -163,7 +164,7 @@ pip install -e .
 - `requests>=2.31` - HTTP client for CLI
 - `typer>=0.9` - CLI framework
 - `fastapi>=0.90` - Optional FastAPI framework support via `devtrack-sdk[fastapi]`
-- `django>=4.0.0` - Optional Django framework support via `devtrack-sdk[django]`
+- `django>=4.0.0` - Optional Django framework support via `devtrack-sdk[django]` (tested with Django 5.2)
 
 ---
 

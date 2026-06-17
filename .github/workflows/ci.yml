@@ -9,6 +9,12 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        django-version:
+          - "django>=4.2,<4.3"
+          - "django>=5.2,<5.3"
 
     steps:
       - uses: actions/checkout@v4
@@ -20,8 +26,10 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt
-          pip install pytest flake8
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+          pip install "${{ matrix.django-version }}"
+          pip install flake8
 
       - name: Run flake8
         run: flake8 .
