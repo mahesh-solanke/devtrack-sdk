@@ -102,8 +102,3 @@ replace = '__version__ = "{new_version}"'
 filename = "README.md"
 search = 'version-{current_version}-blue.svg'
 replace = 'version-{new_version}-blue.svg'
-
-[[tool.bumpversion.files]]
-filename = "pyproject.toml"
-search = 'current_version = "{current_version}"'
-replace = 'current_version = "{new_version}"'
