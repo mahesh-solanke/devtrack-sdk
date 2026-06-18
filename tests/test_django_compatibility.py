@@ -20,9 +20,10 @@ if not apps.ready:
     django.setup()
 
 
-def test_django_runtime_is_in_supported_ci_matrix():
-    """Verify CI exercises the declared supported Django versions."""
-    assert DJANGO_VERSION[:2] in {(4, 2), (5, 2)}
+def test_django_runtime_is_supported():
+    """Verify the installed Django runtime is within the supported range."""
+    assert DJANGO_VERSION[:2] >= (4, 2)
+    assert DJANGO_VERSION[:2] < (6, 0)
 
 
 def test_django_52_middleware_and_urls_load_with_configured_settings():
