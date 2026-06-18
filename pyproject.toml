@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "devtrack-sdk"  # ✅ Hyphenated name for PyPI friendliness
-version = "0.4.2"
+version = "0.4.3"
 description = "Middleware-based API analytics and observability tool for FastAPI and Django"
 readme = {file = "README.md", content-type = "text/markdown"}
 requires-python = ">=3.10"
@@ -76,7 +76,7 @@ python_functions = ["test_*"]
 norecursedirs = [".git", ".venv", "venv", "__pycache__", "*.egg"]
 
 [tool.bumpversion]
-current_version = "0.4.2"
+current_version = "0.4.3"
 parse = '(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)'
 serialize = ["{major}.{minor}.{patch}"]
 commit = false
