@@ -42,6 +42,7 @@ all = [
     "django>=4.0.0"
 ]
 dev = [
+    "bump-my-version>=0.28",
     "django>=4.0.0",
     "fastapi>=0.90",
     "httpx>=0.24",
@@ -73,3 +74,36 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 norecursedirs = [".git", ".venv", "venv", "__pycache__", "*.egg"]
+
+[tool.bumpversion]
+current_version = "0.4.2"
+parse = '(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)'
+serialize = ["{major}.{minor}.{patch}"]
+commit = false
+tag = false
+allow_dirty = false
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = 'version = "{current_version}"'
+replace = 'version = "{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = "setup.py"
+search = 'version="{current_version}"'
+replace = 'version="{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = "devtrack_sdk/__version__.py"
+search = '__version__ = "{current_version}"'
+replace = '__version__ = "{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = "README.md"
+search = 'version-{current_version}-blue.svg'
+replace = 'version-{new_version}-blue.svg'
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = 'current_version = "{current_version}"'
+replace = 'current_version = "{new_version}"'

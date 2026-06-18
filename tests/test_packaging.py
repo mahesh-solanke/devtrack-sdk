@@ -63,6 +63,34 @@ def test_setup_py_keeps_frameworks_optional():
     assert "Framework :: Django :: 5.2" in classifiers
 
 
+def test_package_version_references_stay_in_sync():
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())
+    setup_tree = ast.parse((ROOT / "setup.py").read_text())
+    version_tree = ast.parse((ROOT / "devtrack_sdk" / "__version__.py").read_text())
+    readme = (ROOT / "README.md").read_text()
+
+    setup_call = next(
+        node
+        for node in ast.walk(setup_tree)
+        if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "setup"
+    )
+    setup_kwargs = {keyword.arg: keyword.value for keyword in setup_call.keywords}
+    version_assignment = next(
+        node
+        for node in version_tree.body
+        if isinstance(node, ast.Assign)
+        and any(getattr(target, "id", None) == "__version__" for target in node.targets)
+    )
+
+    pyproject_version = pyproject["project"]["version"]
+    setup_version = ast.literal_eval(setup_kwargs["version"])
+    package_version = ast.literal_eval(version_assignment.value)
+
+    assert setup_version == pyproject_version
+    assert package_version == pyproject_version
+    assert f"version-{pyproject_version}-blue.svg" in readme
+
+
 def test_top_level_import_does_not_require_frameworks(monkeypatch):
     for module_name in list(sys.modules):
         if module_name == "devtrack_sdk" or module_name.startswith("devtrack_sdk."):

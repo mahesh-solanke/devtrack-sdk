@@ -24,9 +24,14 @@ Use this checklist for every release to ensure consistency and completeness.
   - Breaking changes → MAJOR
   - New features → MINOR
   - Bug fixes → PATCH
-- [ ] **Update version in `devtrack_sdk/__version__.py`**
-- [ ] **Update version in `pyproject.toml`**
-- [ ] **Update version badge in `README.md`** (if applicable)
+- [ ] **Bump version in all tracked version files**
+  ```bash
+   bump-my-version bump patch  # or minor / major
+   ```
+- [ ] **Verify version updates**
+  ```bash
+   git diff -- pyproject.toml setup.py devtrack_sdk/__version__.py README.md
+   ```
 
 ### Documentation
 - [ ] **Create/update CHANGELOG.md** (or release notes)
@@ -237,6 +242,9 @@ If critical issues are found after release:
 - [ ] **Create hotfix branch** from main
 - [ ] **Fix critical issue**
 - [ ] **Bump patch version** (e.g., 0.4.2 → 0.4.3)
+  ```bash
+   bump-my-version bump patch
+   ```
 - [ ] **Follow release checklist** for hotfix
 - [ ] **Document issue and fix** in release notes
 - [ ] **Consider yanking problematic version** on PyPI if severe
@@ -257,4 +265,3 @@ Track these for future reference:
 
 **Last Updated:** 2024-12-19
 **Maintainer:** DevTrack SDK Team
-
